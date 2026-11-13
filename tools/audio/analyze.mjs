@@ -158,3 +158,68 @@ export const INTENT = {
   burrow: (a) => [a.dur >= 0.3 && a.centroid < 2000 && a.attack >= 0.05, `rumble rising from below (attack=${a.attack.toFixed(2)}s)`],
   boss_roar: (a) => [a.dur >= 0.8 && a.centroid < 1500 && a.attack >= 0.05, 'long low growl that swells'],
 };
+
+// ── Chín Mạng additions ──────────────────────────────────────────────────────
+/**
+ * Fundamental-frequency track by normalised autocorrelation (YIN-style cumulative-mean
+ * difference). Unlike pitchTrack() (strongest FFT bin) it follows f0 even when a formant
+ * makes an upper harmonic the loudest partial — needed for the meows. Hz or null per frame.
+ */
+export function f0Track(x, frameSec = 0.02, fmin = 150, fmax = 1600, winSec = 0.03) {
+  const hop = Math.max(1, Math.round(frameSec * SR)), W = Math.round(winSec * SR);
+  const tMin = Math.floor(SR / fmax), tMax = Math.ceil(SR / fmin), out = [];
+  let gmax = 0; for (const v of x) gmax = Math.max(gmax, Math.abs(v));
+  const d = new Float64Array(tMax + 1);
+  for (let off = 0; off + W + tMax < x.length || off === 0; off += hop) {
+    if (off + W + tMax >= x.length) { if (off === 0) out.push(null); break; }
+    let e = 0; for (let i = 0; i < W; i++) e = Math.max(e, Math.abs(x[off + i]));
+    if (e < gmax * 0.15) { out.push(null); continue; }
+    for (let t = 1; t <= tMax; t++) {
+      let s = 0; for (let i = 0; i < W; i++) { const q = x[off + i] - x[off + i + t]; s += q * q; }
+      d[t] = s;
+    }
+    // cumulative mean normalised difference
+    let run = 0, best = -1;
+    const cm = new Float64Array(tMax + 1); cm[0] = 1;
+    for (let t = 1; t <= tMax; t++) { run += d[t]; cm[t] = run > 0 ? (d[t] * t) / run : 1; }
+    for (let t = tMin; t <= tMax; t++) if (cm[t] < 0.2) { while (t + 1 <= tMax && cm[t + 1] < cm[t]) t++; best = t; break; }
+    if (best < 0) { out.push(null); continue; }
+    const a = cm[best - 1] ?? cm[best], b = cm[best], c = cm[best + 1] ?? cm[best];
+    const den = a - 2 * b + c, sh = den ? (0.5 * (a - c)) / den : 0;
+    out.push(SR / (best + Math.max(-1, Math.min(1, sh))));
+  }
+  return out;
+}
+
+/** RMS over 10 ms frames whose level is within `gateDb` of the loudest frame (dBFS). */
+export function gatedRmsDb(x, gateDb = 20) {
+  const hop = Math.round(0.01 * SR), fr = [];
+  for (let off = 0; off < x.length; off += hop) {
+    let s = 0, m = 0; for (let i = off; i < Math.min(x.length, off + hop); i++) { s += x[i] * x[i]; m++; }
+    fr.push(s / Math.max(1, m));
+  }
+  const mx = Math.max(...fr), thr = mx * Math.pow(10, -gateDb / 10);
+  let s = 0, k = 0; for (const v of fr) if (v >= thr) { s += v; k++; }
+  return db(Math.sqrt(s / Math.max(1, k)));
+}
+
+/**
+ * High-band energy: share of spectral energy above `hz` for the whole file and per 1024-sample
+ * frame (hop 512 ≈ 23 ms). Returns { total, frames: [{t, ratio, energy}], longestRun } where
+ * longestRun is the longest stretch (s) of consecutive audible frames with ratio > runRatio.
+ */
+export function highBand(x, hz = 6000, runRatio = 0.2) {
+  const N = 1024, hopN = 512, k0 = Math.ceil((hz * N) / SR), frames = [];
+  let hi = 0, all = 0, emax = 0;
+  for (let off = 0; off < Math.max(1, x.length - N / 2); off += hopN) {
+    const p = spectrum(x, off, N);
+    let e = 0, h = 0; for (let k = 1; k < N / 2; k++) { e += p[k]; if (k >= k0) h += p[k]; }
+    hi += h; all += e; emax = Math.max(emax, e);
+    frames.push({ t: off / SR, ratio: e > 0 ? h / e : 0, energy: e });
+  }
+  let run = 0, longest = 0;
+  for (const f of frames) {
+    if (f.energy > emax * 1e-3 && f.ratio > runRatio) { run++; longest = Math.max(longest, run); } else run = 0;
+  }
+  return { total: all > 0 ? hi / all : 0, frames, longestRun: (longest * hopN) / SR };
+}

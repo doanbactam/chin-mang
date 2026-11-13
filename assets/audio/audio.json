@@ -1,0 +1,265 @@
+{
+  "sample_rate": 22050,
+  "target_rms_dbfs": -16,
+  "peak_ceiling_dbfs": -1,
+  "sounds": [
+    {
+      "name": "hit_1",
+      "file": "hit_1.wav",
+      "kind": "sfx",
+      "gain_db": -10,
+      "duration": 0.14
+    },
+    {
+      "name": "hit_2",
+      "file": "hit_2.wav",
+      "kind": "sfx",
+      "gain_db": -10,
+      "duration": 0.16
+    },
+    {
+      "name": "hit_3",
+      "file": "hit_3.wav",
+      "kind": "sfx",
+      "gain_db": -10,
+      "duration": 0.13
+    },
+    {
+      "name": "crit",
+      "file": "crit.wav",
+      "kind": "sfx",
+      "gain_db": -7,
+      "duration": 0.312
+    },
+    {
+      "name": "cat_attack_muop",
+      "file": "cat_attack_muop.wav",
+      "kind": "sfx",
+      "gain_db": -10,
+      "duration": 0.17
+    },
+    {
+      "name": "cat_attack_xiem",
+      "file": "cat_attack_xiem.wav",
+      "kind": "sfx",
+      "gain_db": -10,
+      "duration": 0.11
+    },
+    {
+      "name": "cat_attack_map",
+      "file": "cat_attack_map.wav",
+      "kind": "sfx",
+      "gain_db": -10,
+      "duration": 0.225
+    },
+    {
+      "name": "cat_attack_mun",
+      "file": "cat_attack_mun.wav",
+      "kind": "sfx",
+      "gain_db": -10,
+      "duration": 0.17
+    },
+    {
+      "name": "skill_muop",
+      "file": "skill_muop.wav",
+      "kind": "sfx",
+      "gain_db": -6,
+      "duration": 0.58
+    },
+    {
+      "name": "skill_xiem",
+      "file": "skill_xiem.wav",
+      "kind": "sfx",
+      "gain_db": -6,
+      "duration": 0.65
+    },
+    {
+      "name": "skill_map",
+      "file": "skill_map.wav",
+      "kind": "sfx",
+      "gain_db": -6,
+      "duration": 0.6
+    },
+    {
+      "name": "skill_mun",
+      "file": "skill_mun.wav",
+      "kind": "sfx",
+      "gain_db": -6,
+      "duration": 0.75
+    },
+    {
+      "name": "enemy_die",
+      "file": "enemy_die.wav",
+      "kind": "sfx",
+      "gain_db": -8,
+      "duration": 0.22
+    },
+    {
+      "name": "boss_appear",
+      "file": "boss_appear.wav",
+      "kind": "sfx",
+      "gain_db": -4,
+      "duration": 1.27
+    },
+    {
+      "name": "boss_die",
+      "file": "boss_die.wav",
+      "kind": "sfx",
+      "gain_db": -4,
+      "duration": 1.41
+    },
+    {
+      "name": "cat_down",
+      "file": "cat_down.wav",
+      "kind": "sfx",
+      "gain_db": -5,
+      "duration": 0.6
+    },
+    {
+      "name": "level_up",
+      "file": "level_up.wav",
+      "kind": "sfx",
+      "gain_db": -5,
+      "duration": 0.69
+    },
+    {
+      "name": "unlock",
+      "file": "unlock.wav",
+      "kind": "sfx",
+      "gain_db": -4,
+      "duration": 1.0154
+    },
+    {
+      "name": "coin",
+      "file": "coin.wav",
+      "kind": "sfx",
+      "gain_db": -12,
+      "duration": 0.2
+    },
+    {
+      "name": "yarn",
+      "file": "yarn.wav",
+      "kind": "sfx",
+      "gain_db": -12,
+      "duration": 0.26
+    },
+    {
+      "name": "gear_drop",
+      "file": "gear_drop.wav",
+      "kind": "sfx",
+      "gain_db": -8,
+      "duration": 0.3
+    },
+    {
+      "name": "gear_legendary",
+      "file": "gear_legendary.wav",
+      "kind": "sfx",
+      "gain_db": -3,
+      "duration": 1.3
+    },
+    {
+      "name": "box_land",
+      "file": "box_land.wav",
+      "kind": "sfx",
+      "gain_db": -6,
+      "duration": 0.25
+    },
+    {
+      "name": "box_open",
+      "file": "box_open.wav",
+      "kind": "sfx",
+      "gain_db": -5,
+      "duration": 0.69
+    },
+    {
+      "name": "catnip",
+      "file": "catnip.wav",
+      "kind": "sfx",
+      "gain_db": -5,
+      "duration": 0.93
+    },
+    {
+      "name": "ui_click",
+      "file": "ui_click.wav",
+      "kind": "sfx",
+      "gain_db": -10,
+      "duration": 0.05
+    },
+    {
+      "name": "ui_tab",
+      "file": "ui_tab.wav",
+      "kind": "sfx",
+      "gain_db": -10,
+      "duration": 0.07
+    },
+    {
+      "name": "ui_error",
+      "file": "ui_error.wav",
+      "kind": "sfx",
+      "gain_db": -8,
+      "duration": 0.26
+    },
+    {
+      "name": "prestige",
+      "file": "prestige.wav",
+      "kind": "sfx",
+      "gain_db": -3,
+      "duration": 1.9
+    },
+    {
+      "name": "achievement",
+      "file": "achievement.wav",
+      "kind": "sfx",
+      "gain_db": -4,
+      "duration": 1.1
+    },
+    {
+      "name": "stage_clear",
+      "file": "stage_clear.wav",
+      "kind": "sfx",
+      "gain_db": -5,
+      "duration": 0.71
+    },
+    {
+      "name": "meow_1",
+      "file": "meow_1.wav",
+      "kind": "sfx",
+      "gain_db": -6,
+      "duration": 0.55
+    },
+    {
+      "name": "meow_2",
+      "file": "meow_2.wav",
+      "kind": "sfx",
+      "gain_db": -6,
+      "duration": 0.34
+    },
+    {
+      "name": "meow_3",
+      "file": "meow_3.wav",
+      "kind": "sfx",
+      "gain_db": -6,
+      "duration": 0.8
+    },
+    {
+      "name": "meow_4",
+      "file": "meow_4.wav",
+      "kind": "sfx",
+      "gain_db": -6,
+      "duration": 0.36
+    },
+    {
+      "name": "music_calm",
+      "file": "music_calm.wav",
+      "kind": "music",
+      "gain_db": -8,
+      "duration": 66.6667,
+      "loop": true,
+      "loop_start": 0,
+      "loop_end": 1470000,
+      "bpm": 72,
+      "bars": 20,
+      "beats_per_bar": 4
+    }
+  ]
+}
