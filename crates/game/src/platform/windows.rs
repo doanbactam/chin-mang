@@ -3,17 +3,20 @@
 
 use crate::layout::WorkArea;
 use crate::settings::Settings;
+use crate::sim::Sim;
 use crate::ui::CurrentLayout;
-use crate::ui::hud::hud_buttons_rect;
+use crate::ui::vdom::{HoldButton, UiAction};
+use crate::world::{WorldCam, window_to_logic};
 use bevy::prelude::*;
+use bevy::ui::{ComputedNode, UiGlobalTransform};
 use bevy::window::{CursorOptions, PrimaryWindow};
 use windows_sys::Win32::Foundation::{POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromPoint,
 };
 use windows_sys::Win32::System::Registry::{
-    HKEY, HKEY_CURRENT_USER, KEY_SET_VALUE, REG_SZ, RegCloseKey, RegDeleteValueW, RegOpenKeyExW,
-    RegSetValueExW,
+    HKEY, HKEY_CURRENT_USER, KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, REG_SZ, RegCloseKey,
+    RegCreateKeyExW, RegDeleteValueW, RegSetValueExW,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
@@ -59,29 +62,46 @@ pub fn windows_locale() -> String {
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const RUN_NAME: &str = "ChinMang";
 
-/// Bật/tắt tự khởi động cùng Windows.
+/// Bật/tắt tự khởi động cùng Windows (ghi đường dẫn exe hiện tại; khóa luôn được đóng).
 pub fn set_autostart(on: bool) -> Result<(), String> {
+    // chuẩn bị mọi thứ có thể lỗi TRƯỚC khi mở khóa registry
+    let val = if on {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        Some(wide(&format!("\"{}\"", exe.display())))
+    } else {
+        None
+    };
+    let path = wide(RUN_KEY);
+    let name = wide(RUN_NAME);
     unsafe {
         let mut key: HKEY = std::ptr::null_mut();
-        let path = wide(RUN_KEY);
-        if RegOpenKeyExW(HKEY_CURRENT_USER, path.as_ptr(), 0, KEY_SET_VALUE, &mut key) != 0 {
-            return Err("không mở được khóa Run".into());
+        let opened = RegCreateKeyExW(
+            HKEY_CURRENT_USER,
+            path.as_ptr(),
+            0,
+            std::ptr::null(),
+            REG_OPTION_NON_VOLATILE,
+            KEY_SET_VALUE,
+            std::ptr::null(),
+            &mut key,
+            std::ptr::null_mut(),
+        );
+        if opened != 0 {
+            return Err(format!("không mở được khóa Run ({opened})"));
         }
-        let name = wide(RUN_NAME);
-        let res = if on {
-            let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-            let val = wide(&format!("\"{}\"", exe.display()));
-            RegSetValueExW(
+        let res = match &val {
+            Some(v) => RegSetValueExW(
                 key,
                 name.as_ptr(),
                 0,
                 REG_SZ,
-                val.as_ptr() as *const u8,
-                (val.len() * 2) as u32,
-            )
-        } else {
-            let r = RegDeleteValueW(key, name.as_ptr());
-            if r == 2 { 0 } else { r } // ERROR_FILE_NOT_FOUND: đã tắt sẵn
+                v.as_ptr() as *const u8,
+                (v.len() * 2) as u32,
+            ),
+            None => {
+                let r = RegDeleteValueW(key, name.as_ptr());
+                if r == 2 { 0 } else { r } // ERROR_FILE_NOT_FOUND: đã tắt sẵn
+            }
         };
         RegCloseKey(key);
         if res == 0 {
@@ -104,13 +124,17 @@ impl Plugin for WindowsPlugin {
     }
 }
 
-/// Ghost mode: cả dải click-xuyên-qua; bật lại hit test khi con trỏ nằm trên cụm nút HUD bên phải.
+/// Ghost mode: cả dải click-xuyên-qua; bật lại hit test khi con trỏ ở trên một nút (HUD, Thử lại boss,
+/// Nhận ở thẻ vắng mặt, Đã hiểu ở bong bóng hướng dẫn…) hoặc trên hộp carton.
 fn ghost_mode(
     time: Res<Time<Real>>,
     mut timer: ResMut<GhostTimer>,
     settings: Res<Settings>,
     layout: Option<Res<CurrentLayout>>,
     view: Res<crate::ui::View>,
+    sim: Option<Res<Sim>>,
+    cam: Res<WorldCam>,
+    buttons: Query<(&ComputedNode, &UiGlobalTransform), Or<(With<UiAction>, With<HoldButton>)>>,
     mut q: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
     let Ok(mut cursor) = q.single_mut() else {
@@ -131,14 +155,28 @@ fn ghost_mode(
         return;
     }
     let l = layout.0;
-    let r = hud_buttons_rect(&l);
     let (wx, wy) = l.window_pos;
-    let inside = r.contains((p.x - wx) as f32, (p.y - wy) as f32);
+    let local = Vec2::new((p.x - wx) as f32, (p.y - wy) as f32);
+    let rects: Vec<(Vec2, Vec2)> = buttons
+        .iter()
+        .map(|(n, t)| (t.translation, n.size()))
+        .collect();
+    let mut inside = super::point_in_any(local, &rects);
+    if !inside
+        && let (Some(sim), Some(lp)) = (sim, window_to_logic(local, l.strip, l.scale, cam.left))
+        && let Some(b) = sim.game.carton()
+    {
+        inside = b.opening.is_none()
+            && (lp.x - b.x).abs() <= 9.0
+            && lp.y >= b.y - 1.0
+            && lp.y <= b.y + 14.0;
+    }
     if cursor.hit_test != inside {
         cursor.hit_test = inside;
     }
 }
 
+/// Đồng bộ registry: lúc khởi động (nếu đang bật thì ghi lại đường dẫn exe hiện tại) và mỗi khi đổi cài đặt.
 fn autostart_sync(settings: Res<Settings>, mut last: Local<Option<bool>>) {
     if *last != Some(settings.autostart) {
         if (last.is_some() || settings.autostart)

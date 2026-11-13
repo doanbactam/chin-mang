@@ -55,6 +55,15 @@ fn persist_settings(settings: Res<Settings>, sim: Option<Res<sim::Sim>>) {
 }
 
 fn main() {
+    // Chỉ một bản chạy (2 bản sẽ ghi đè save của nhau). Giữ khóa tới khi thoát.
+    #[cfg(not(target_arch = "wasm32"))]
+    let _instance_lock = match save_io::acquire_single_instance() {
+        Ok(lock) => lock,
+        Err(e) => {
+            eprintln!("{e}");
+            return;
+        }
+    };
     #[allow(unused_mut)]
     let mut settings = load_settings();
     let mut app = App::new();
@@ -90,9 +99,10 @@ fn main() {
             app.insert_resource(audio::Sfx::muted());
         }
         _ => {
-            let (sim, report) = sim::load_or_new(save_io::now_unix());
+            let (sim, report, notes) = sim::load_or_new(save_io::now_unix());
             app.insert_resource(sim)
-                .insert_resource(sim::Offline { report, shown: 0.0 });
+                .insert_resource(sim::Offline { report, shown: 0.0 })
+                .insert_resource(sim::Notices(notes));
         }
     }
 

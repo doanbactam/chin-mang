@@ -3,11 +3,43 @@
 //! - Linux/khác: `$XDG_DATA_HOME/chin-mang/` (mặc định `~/.local/share/chin-mang/`)
 //! - wasm: `localStorage` khóa `chin-mang.<tên>`
 //!
-//! Ghi file nguyên tử: ghi `<tên>.tmp` rồi `rename` đè.
+//! Ghi file nguyên tử: ghi `<tên>.tmp` + fsync rồi `rename` đè (thử lại 5×50 ms); save giữ thêm `save.bak`
+//! (bản tốt gần nhất), save hỏng được cách ly thành `save.corrupt-<ts>.json`.
 
 pub const SAVE_KEY: &str = "save";
 pub const SETTINGS_KEY: &str = "settings";
 pub const EXPORT_KEY: &str = "export";
+/// Bản save tốt gần nhất trước bản hiện tại (xoay vòng mỗi lần lưu thành công).
+pub const BAK_KEY: &str = "save.bak";
+/// Bản save ngay trước khi nhập save khác.
+pub const BEFORE_IMPORT_KEY: &str = "save.before-import";
+/// Khóa chạy một bản (cạnh save).
+#[cfg(not(target_arch = "wasm32"))]
+pub const LOCK_KEY: &str = "chin-mang.lock";
+
+#[cfg(not(target_arch = "wasm32"))]
+/// Số lần thử lại thao tác file (rename bị chặn tạm thời trên Windows khi antivirus/indexer giữ file).
+pub const RETRIES: u32 = 5;
+#[cfg(not(target_arch = "wasm32"))]
+pub const RETRY_MS: u64 = 50;
+
+#[cfg(not(target_arch = "wasm32"))]
+/// Chạy `f` tối đa `tries` lần, nghỉ `wait` giữa các lần; trả lỗi cuối cùng.
+pub fn retry<T, E>(
+    tries: u32,
+    mut wait: impl FnMut(),
+    mut f: impl FnMut() -> Result<T, E>,
+) -> Result<T, E> {
+    let mut last = f();
+    for _ in 1..tries.max(1) {
+        if last.is_ok() {
+            break;
+        }
+        wait();
+        last = f();
+    }
+    last
+}
 
 /// Giây unix hiện tại.
 pub fn now_unix() -> u64 {
@@ -88,23 +120,68 @@ mod native {
         )
     }
 
-    pub fn path_for(key: &str) -> Option<PathBuf> {
-        let ext = if key == super::EXPORT_KEY {
-            "txt"
-        } else {
-            "json"
-        };
-        data_dir().map(|d| d.join(format!("{key}.{ext}")))
+    pub fn file_name(key: &str) -> String {
+        match key {
+            super::EXPORT_KEY => "export.txt".into(),
+            super::BAK_KEY | super::LOCK_KEY => key.into(),
+            _ => format!("{key}.json"),
+        }
     }
 
-    /// Ghi nguyên tử: tmp + rename.
-    pub fn write_atomic(path: &Path, data: &str) -> std::io::Result<()> {
+    pub fn path_for(key: &str) -> Option<PathBuf> {
+        data_dir().map(|d| d.join(file_name(key)))
+    }
+
+    fn rename_retry(from: &Path, to: &Path) -> std::io::Result<()> {
+        super::retry(
+            super::RETRIES,
+            || std::thread::sleep(std::time::Duration::from_millis(super::RETRY_MS)),
+            || std::fs::rename(from, to),
+        )
+    }
+
+    /// Ghi `tmp` + fsync, trả đường dẫn tmp.
+    fn write_tmp(path: &Path, data: &str) -> std::io::Result<PathBuf> {
+        use std::io::Write;
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
         let tmp = path.with_extension("tmp");
-        std::fs::write(&tmp, data)?;
-        std::fs::rename(&tmp, path)
+        let mut f = std::fs::File::create(&tmp)?;
+        f.write_all(data.as_bytes())?;
+        f.sync_all()?;
+        Ok(tmp)
+    }
+
+    /// fsync thư mục để tên mới bền qua mất điện (Unix; Windows không mở được thư mục như file).
+    fn sync_dir(path: &Path) {
+        #[cfg(unix)]
+        if let Some(dir) = path.parent()
+            && let Ok(d) = std::fs::File::open(dir)
+        {
+            let _ = d.sync_all();
+        }
+        #[cfg(not(unix))]
+        let _ = path;
+    }
+
+    /// Ghi nguyên tử: tmp + fsync + rename (thử lại) + fsync thư mục.
+    pub fn write_atomic(path: &Path, data: &str) -> std::io::Result<()> {
+        let tmp = write_tmp(path, data)?;
+        rename_retry(&tmp, path)?;
+        sync_dir(path);
+        Ok(())
+    }
+
+    /// Ghi save mới, bản cũ (đã từng ghi thành công) thành `bak`.
+    pub fn write_rotating(path: &Path, bak: &Path, data: &str) -> std::io::Result<()> {
+        let tmp = write_tmp(path, data)?;
+        if path.exists() {
+            rename_retry(path, bak)?;
+        }
+        rename_retry(&tmp, path)?;
+        sync_dir(path);
+        Ok(())
     }
 }
 
@@ -143,6 +220,81 @@ pub fn write(key: &str, data: &str) -> Result<String, String> {
             native::path_for(key).ok_or_else(|| "không tìm thấy thư mục dữ liệu".to_string())?;
         native::write_atomic(&path, data).map_err(|e| e.to_string())?;
         Ok(path.display().to_string())
+    }
+}
+
+/// Lưu save game: bản đang có thành `save.bak`, bản mới thành `save`.
+pub fn write_save(data: &str) -> Result<String, String> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        if let Some(old) = read(SAVE_KEY) {
+            let _ = write(BAK_KEY, &old);
+        }
+        write(SAVE_KEY, data)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let (Some(path), Some(bak)) = (native::path_for(SAVE_KEY), native::path_for(BAK_KEY))
+        else {
+            return Err("không tìm thấy thư mục dữ liệu".into());
+        };
+        native::write_rotating(&path, &bak, data).map_err(|e| e.to_string())?;
+        Ok(path.display().to_string())
+    }
+}
+
+/// Cách ly một save hỏng thành `save.corrupt-<ts>.json` để không bị ghi đè. Trả về nơi đã cất.
+pub fn quarantine(key: &str, ts: u64) -> Option<String> {
+    let dest = format!("{key}.corrupt-{ts}");
+    #[cfg(target_arch = "wasm32")]
+    {
+        let data = read(key)?;
+        write(&dest, &data).ok()?;
+        remove(key);
+        Some(dest)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let from = native::path_for(key)?;
+        let to = native::path_for(&dest)?;
+        std::fs::rename(&from, &to).ok()?;
+        Some(to.display().to_string())
+    }
+}
+
+/// Khóa chạy một bản: giữ file khóa (độc quyền) cạnh save suốt vòng đời tiến trình.
+/// `Ok(None)` = không có thư mục dữ liệu (bỏ qua); `Err` = đã có bản khác đang chạy.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn acquire_single_instance() -> Result<Option<std::fs::File>, String> {
+    use std::io::Write;
+    let Some(path) = native::path_for(LOCK_KEY) else {
+        return Ok(None);
+    };
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(&path)
+        .map_err(|e| e.to_string())?;
+    match f.try_lock() {
+        Ok(()) => {
+            let _ = f.set_len(0);
+            let _ = write!(f, "{}", std::process::id());
+            Ok(Some(f))
+        }
+        Err(std::fs::TryLockError::WouldBlock) => Err(format!(
+            "đã có bản Chín Mạng khác đang chạy (khóa {})",
+            path.display()
+        )),
+        Err(std::fs::TryLockError::Error(e)) => {
+            // hệ thống file không hỗ trợ khóa: chạy tiếp, không chặn người chơi
+            eprintln!("không khóa được {}: {e}", path.display());
+            Ok(Some(f))
+        }
     }
 }
 
@@ -212,6 +364,59 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&p).unwrap(), "{\"a\":2}");
         assert!(!p.with_extension("tmp").exists());
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn rotating_write_keeps_previous_as_bak() {
+        let dir = std::env::temp_dir().join(format!("chin-mang-rot-{}", std::process::id()));
+        let p = dir.join("save.json");
+        let b = dir.join("save.bak");
+        native::write_rotating(&p, &b, "A").unwrap();
+        assert!(!b.exists());
+        native::write_rotating(&p, &b, "B").unwrap();
+        native::write_rotating(&p, &b, "C").unwrap();
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), "C");
+        assert_eq!(std::fs::read_to_string(&b).unwrap(), "B");
+        assert!(!p.with_extension("tmp").exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn retry_gives_up_after_n_tries() {
+        let mut n = 0;
+        let mut waits = 0;
+        let r: Result<(), ()> = retry(
+            5,
+            || waits += 1,
+            || {
+                n += 1;
+                Err(())
+            },
+        );
+        assert!(r.is_err());
+        assert_eq!((n, waits), (5, 4));
+        let mut m = 0;
+        let r: Result<u32, ()> = retry(
+            5,
+            || {},
+            || {
+                m += 1;
+                if m < 3 { Err(()) } else { Ok(m) }
+            },
+        );
+        assert_eq!(r, Ok(3));
+    }
+
+    #[test]
+    fn file_names() {
+        assert_eq!(native::file_name(SAVE_KEY), "save.json");
+        assert_eq!(native::file_name(BAK_KEY), "save.bak");
+        assert_eq!(native::file_name("save.corrupt-12"), "save.corrupt-12.json");
+        assert_eq!(
+            native::file_name(BEFORE_IMPORT_KEY),
+            "save.before-import.json"
+        );
+        assert_eq!(native::file_name(EXPORT_KEY), "export.txt");
     }
 
     #[test]

@@ -15,6 +15,7 @@ use bevy::prelude::*;
 use cm_core::{Command, Game, Rarity};
 
 pub const RESET_HOLD: f32 = 3.0;
+pub const IMPORT_HOLD: f32 = 2.0;
 const COL_W: f32 = (INNER_W - S2) / 2.0;
 
 /// Hàng 2 dòng: nhãn trên, điều khiển dưới.
@@ -217,7 +218,20 @@ pub fn build(cx: &Cx, game: &Game, s: &Settings, caps: &Caps) -> VNode {
         hbox(S1)
             .kid(button_small(cx, cx.t("set_export"), Action::Export, true).tip(cx.t("tip_export")))
             .kid(
-                button_small(cx, cx.t("set_import"), Action::Import, true).tip(cx.t("tip_import")),
+                hold_button(
+                    cx,
+                    cx.t("set_import"),
+                    Action::Import,
+                    true,
+                    IMPORT_HOLD,
+                    84.0,
+                )
+                .tip(format!(
+                    "{}\n{}\n{}",
+                    cx.t("set_import"),
+                    cx.t("tip_import"),
+                    cx.t("tip_import_hold")
+                )),
             ),
     );
     right = right.kid(

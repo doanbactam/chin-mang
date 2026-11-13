@@ -246,9 +246,24 @@ fn frame_pacing(
     }
 }
 
+/// Điểm nằm trong một trong các hình chữ nhật (tâm, kích thước) — vùng bật lại hit test của Ghost mode.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn point_in_any(p: Vec2, rects: &[(Vec2, Vec2)]) -> bool {
+    rects
+        .iter()
+        .any(|(c, s)| (p.x - c.x).abs() <= s.x / 2.0 && (p.y - c.y).abs() <= s.y / 2.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn ghost_hit_rects() {
+        let r = [(Vec2::new(100.0, 50.0), Vec2::new(40.0, 20.0))];
+        assert!(point_in_any(Vec2::new(119.0, 59.0), &r));
+        assert!(!point_in_any(Vec2::new(121.0, 50.0), &r));
+        assert!(!point_in_any(Vec2::new(0.0, 0.0), &[]));
+    }
     #[test]
     fn fps_policy() {
         assert_eq!(target_fps(30, false, true), 30);

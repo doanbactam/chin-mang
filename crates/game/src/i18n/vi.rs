@@ -242,10 +242,8 @@ pub const STRINGS: &[(&str, &str)] = &[
     ("talent_points_hint", "Mèo nhận 1 điểm mỗi 10 cấp."),
     ("empty_slot", "Trống"),
     ("skill_cd", "Hồi {0} s"),
-    ("btn_back", "Danh sách"),
     ("btn_equip_best", "Mặc đồ tốt nhất"),
     ("tip_unequip", "Bấm để gỡ ra."),
-    ("select_cat_hint", "Chọn một mèo để xem chi tiết."),
     // ── tab Đồ ──
     ("filter_slot", "Ô"),
     ("filter_rarity", "Độ hiếm"),
@@ -376,6 +374,19 @@ pub const STRINGS: &[(&str, &str)] = &[
     ("toast_export_file", "Đã ghi save ra {0}"),
     ("toast_import_ok", "Đã nhập save."),
     ("toast_import_fail", "Không đọc được save trong clipboard."),
+    (
+        "toast_save_restored",
+        "Save chính bị hỏng — đã khôi phục từ bản dự phòng.",
+    ),
+    (
+        "toast_save_corrupt",
+        "Save bị hỏng nên đã cất riêng (save.corrupt) — bắt đầu ván mới.",
+    ),
+    ("toast_save_fail", "Không lưu được!"),
+    (
+        "tip_import_hold",
+        "Giữ 2 giây để nhập save (bản hiện tại được cất thành save.before-import).",
+    ),
     ("toast_reset", "Đã xóa tiến trình."),
     ("err_fish", "Chưa đủ cá"),
     ("err_yarn", "Chưa đủ len"),

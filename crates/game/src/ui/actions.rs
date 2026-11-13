@@ -163,10 +163,10 @@ pub fn run_actions(
             .map(|j| Game::load(&j))
         {
             Some(Ok(g)) => {
-                sim.replace(g);
-                sim.save_now();
-                toasts.push(t(lang, "toast_import_ok"));
-                sfx.play("unlock");
+                if import_game(&mut sim, &mut offline, g) {
+                    toasts.push(t(lang, "toast_import_ok"));
+                    sfx.play("unlock");
+                }
             }
             _ => {
                 toasts.push(t(lang, "toast_import_fail"));
@@ -269,9 +269,9 @@ pub fn run_actions(
                         .map(|j| Game::load(&j))
                     {
                         Some(Ok(g)) => {
-                            sim.replace(g);
-                            sim.save_now();
-                            toasts.push(t(lang, "toast_import_ok"));
+                            if import_game(&mut sim, &mut offline, g) {
+                                toasts.push(t(lang, "toast_import_ok"));
+                            }
                         }
                         _ => {
                             toasts.push(t(lang, "toast_import_fail"));
@@ -285,6 +285,7 @@ pub fn run_actions(
                 let seed = save_io::now_unix();
                 sim.replace(Game::new(seed));
                 sim.save_now();
+                offline.report = None;
                 *view = View {
                     panel: view.panel,
                     ..View::default()
@@ -306,6 +307,21 @@ pub fn run_actions(
             }
         }
     }
+}
+
+/// Thay ván bằng save nhập vào: cất bản hiện tại thành `save.before-import`, xóa thẻ vắng mặt cũ, lưu.
+fn import_game(sim: &mut Sim, offline: &mut Offline, g: Game) -> bool {
+    if sim.persist {
+        let current = sim.game.save(save_io::now_unix());
+        if let Err(e) = save_io::write(save_io::BEFORE_IMPORT_KEY, &current) {
+            sim.save_error = Some(e);
+            return false;
+        }
+    }
+    sim.replace(g);
+    offline.report = None;
+    sim.save_now();
+    true
 }
 
 pub fn apply_setting(s: &mut Settings, op: SetOp) {

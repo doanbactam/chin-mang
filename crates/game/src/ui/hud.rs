@@ -18,20 +18,13 @@ pub fn right_cluster_w(k: f32) -> f32 {
 pub fn btn_size(k: f32) -> f32 {
     20.0 * k
 }
-/// Hệ số art của HUD theo bố cục.
+/// Hệ số art của HUD theo bố cục: một nửa hệ số thế giới (làm tròn lên) để thế giới là nhân vật chính
+/// (×1, ×2 → HUD ×1; ×3, ×4 → HUD ×2).
 pub fn hud_k(l: &crate::layout::LayoutOut) -> f32 {
-    (l.scale as f32 / l.ui_scale).max(1.0).round()
+    hud_k_for(l.scale as f32 / l.ui_scale)
 }
-/// Vùng cụm nút phải của HUD (px cửa sổ) — Ghost mode bật lại hit test khi con trỏ ở đây.
-#[cfg_attr(not(windows), allow(dead_code))]
-pub fn hud_buttons_rect(l: &crate::layout::LayoutOut) -> Rect {
-    let w = (right_cluster_w(hud_k(l)) + S4) * l.ui_scale;
-    Rect {
-        x: l.strip.right() - w,
-        y: l.strip.y,
-        w,
-        h: l.strip.h,
-    }
+pub fn hud_k_for(world_k: f32) -> f32 {
+    (world_k.max(1.0).round() / 2.0).ceil().max(1.0)
 }
 
 pub fn build(
@@ -286,4 +279,15 @@ pub fn cat_tooltip(cx: &Cx, game: &Game, cat: CatId) -> Vec<VNode> {
         ),
         text(cx, cx.t("cat_tip_hint"), Fs::Small, Ink::Muted),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn hud_is_half_world_scale() {
+        assert_eq!(super::hud_k_for(1.0), 1.0);
+        assert_eq!(super::hud_k_for(2.0), 1.0);
+        assert_eq!(super::hud_k_for(3.0), 2.0);
+        assert_eq!(super::hud_k_for(4.0), 2.0);
+    }
 }

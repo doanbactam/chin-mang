@@ -13,7 +13,8 @@ import { ROOT, run, cargoEnv, which, copyDir, fmtMs, flag } from './lib/util.mjs
 const argv = process.argv.slice(2);
 const profile = flag(argv, '--profile') || process.env.CM_WASM_PROFILE || 'wasm-release';
 const out = path.resolve(ROOT, flag(argv, '--out') || 'dist/web');
-const doOpt = argv.includes('--opt');
+// wasm-opt mặc định cho bản release (không --fast); bỏ qua êm nếu không có wasm-opt trong PATH.
+const doOpt = argv.includes('--opt') || (!argv.includes('--no-opt') && !(argv.includes('--fast') || process.env.CM_WASM_FAST === '1') && (flag(argv, '--profile') || process.env.CM_WASM_PROFILE || 'wasm-release') !== 'dev');
 const skipCargo = argv.includes('--skip-cargo');
 // --fast: codegen-units=16, lto=off cho vòng lặp nhanh (không đổi Cargo.toml).
 const fast = argv.includes('--fast') || process.env.CM_WASM_FAST === '1';

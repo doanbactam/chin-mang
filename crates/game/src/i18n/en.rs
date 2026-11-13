@@ -246,10 +246,8 @@ pub const STRINGS: &[(&str, &str)] = &[
     ("talent_points_hint", "Cats earn 1 point every 10 levels."),
     ("empty_slot", "Empty"),
     ("skill_cd", "Cooldown {0} s"),
-    ("btn_back", "List"),
     ("btn_equip_best", "Equip best"),
     ("tip_unequip", "Click to unequip."),
-    ("select_cat_hint", "Pick a cat to see details."),
     ("filter_slot", "Slot"),
     ("filter_rarity", "Rarity"),
     ("slot_short_collar", "Collar"),
@@ -379,6 +377,19 @@ pub const STRINGS: &[(&str, &str)] = &[
     (
         "toast_import_fail",
         "Couldn't read a save from the clipboard.",
+    ),
+    (
+        "toast_save_restored",
+        "Main save was damaged — restored from the backup.",
+    ),
+    (
+        "toast_save_corrupt",
+        "Save was damaged and set aside (save.corrupt) — starting fresh.",
+    ),
+    ("toast_save_fail", "Could not save!"),
+    (
+        "tip_import_hold",
+        "Hold 2 seconds to import (the current save is kept as save.before-import).",
     ),
     ("toast_reset", "Progress erased."),
     ("err_fish", "Not enough fish"),

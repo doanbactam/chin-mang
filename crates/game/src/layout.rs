@@ -78,13 +78,26 @@ pub fn auto_scale(dpi: f32) -> u32 {
     (r as u32).clamp(1, 4)
 }
 
+/// Màn hình cao (≥ 1440p, tính theo vùng làm việc + taskbar ~100 px) dùng tối thiểu ×3 để mèo đủ lớn.
+pub const TALL_SCREEN_WORK_H: u32 = 1340;
+
+/// Hệ số "Tự động" theo DPI và chiều cao vùng làm việc (px vật lý).
+pub fn auto_scale_for(dpi: f32, work_h: u32) -> u32 {
+    let base = auto_scale(dpi);
+    if work_h >= TALL_SCREEN_WORK_H {
+        base.max(3)
+    } else {
+        base
+    }
+}
+
 pub fn ui_scale_for(dpi: f32) -> f32 {
     dpi.round().max(1.0)
 }
 
 pub fn compute(i: &LayoutIn) -> LayoutOut {
     let scale = if i.scale_setting == 0 {
-        auto_scale(i.work.dpi)
+        auto_scale_for(i.work.dpi, i.work.h)
     } else {
         i.scale_setting.clamp(1, 4)
     };
@@ -175,6 +188,9 @@ mod tests {
         assert_eq!(auto_scale(2.0), 4);
         assert_eq!(auto_scale(3.0), 4);
         assert_eq!(auto_scale(0.5), 1);
+        assert_eq!(auto_scale_for(1.0, 1040), 2);
+        assert_eq!(auto_scale_for(1.0, 1400), 3);
+        assert_eq!(auto_scale_for(2.0, 2100), 4);
     }
 
     #[test]

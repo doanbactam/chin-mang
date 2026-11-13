@@ -80,14 +80,19 @@ pub struct Toasts(pub Vec<(String, f32)>);
 
 impl Toasts {
     pub const TTL: f32 = 2.8;
+    /// Thông báo quan trọng (save hỏng / khôi phục / không lưu được).
+    pub const TTL_LONG: f32 = 8.0;
     pub fn push(&mut self, s: &str) {
+        self.push_for(s, Self::TTL);
+    }
+    pub fn push_for(&mut self, s: &str, ttl: f32) {
         if self.0.last().is_some_and(|(t, _)| t == s) {
             if let Some(last) = self.0.last_mut() {
-                last.1 = Self::TTL;
+                last.1 = last.1.max(ttl);
             }
             return;
         }
-        self.0.push((s.to_string(), Self::TTL));
+        self.0.push((s.to_string(), ttl));
         if self.0.len() > 2 {
             self.0.remove(0);
         }
@@ -143,7 +148,19 @@ fn tick_toasts(
     mut toasts: ResMut<Toasts>,
     mut offline: ResMut<Offline>,
     view: Res<View>,
+    mut notices: ResMut<crate::sim::Notices>,
+    mut sim: ResMut<Sim>,
+    settings: Res<Settings>,
 ) {
+    for key in notices.0.drain(..) {
+        toasts.push_for(crate::i18n::t(settings.lang, key), Toasts::TTL_LONG);
+    }
+    if sim.save_error.take().is_some() {
+        toasts.push_for(
+            crate::i18n::t(settings.lang, "toast_save_fail"),
+            Toasts::TTL_LONG,
+        );
+    }
     let dt = time.delta_secs();
     for t in &mut toasts.0 {
         t.1 -= dt;

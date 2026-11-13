@@ -25,23 +25,51 @@ pub fn build(cx: &Cx, game: &Game, view: &View) -> VNode {
                 .map(|(m, k)| (cx.t(k).to_string(), view.buy == *m, Action::BuyMode(*m)))
                 .collect(),
         ));
-    let mut v = vbox(S1).kid(top);
-    match view.sel_cat {
-        Some(cat) => {
-            let info = game.cat_info(cat);
-            v = v.kid(cat_row(cx, game, view, &info, true));
-            if info.unlocked {
-                v = v.kid(detail(cx, &info));
-            }
-        }
-        None => {
-            for cat in CatId::ALL {
-                v = v.kid(cat_row(cx, game, view, &game.cat_info(cat), false));
-            }
-            v = v.kid(text(cx, cx.t("select_cat_hint"), Fs::Small, Ink::Muted));
-        }
+    let mut v = vbox(2.0).kid(top);
+    let sel = shown_cat(game, view);
+    for cat in CatId::ALL {
+        v = v.kid(cat_row(
+            cx,
+            game,
+            view,
+            &game.cat_info(cat),
+            Some(cat) == sel,
+        ));
+    }
+    if let Some(cat) = sel {
+        v = v.kid(detail(cx, &game.cat_info(cat)));
     }
     v
+}
+
+/// Mèo hiện chi tiết: mèo đang chọn (nếu đã mở), nếu không thì mèo có lần lên cấp mua được rẻ nhất,
+/// cuối cùng là mèo đã mở đầu tiên — chi tiết luôn hiện.
+pub fn shown_cat(game: &Game, view: &View) -> Option<CatId> {
+    let unlocked: Vec<CatId> = CatId::ALL
+        .into_iter()
+        .filter(|c| game.cat_info(*c).unlocked)
+        .collect();
+    let quotes: Vec<(CatId, bool, f64)> = unlocked
+        .iter()
+        .map(|c| {
+            let q = game.level_quote(*c, BuyMode::One);
+            (*c, q.affordable && q.levels > 0, q.cost)
+        })
+        .collect();
+    pick_shown(view.sel_cat, &quotes)
+}
+
+/// Phần thuần của [`shown_cat`]: `quotes` = (mèo đã mở, mua được 1 cấp, giá).
+pub fn pick_shown(selected: Option<CatId>, quotes: &[(CatId, bool, f64)]) -> Option<CatId> {
+    if let Some(c) = selected.filter(|c| quotes.iter().any(|q| q.0 == *c)) {
+        return Some(c);
+    }
+    quotes
+        .iter()
+        .filter(|q| q.1)
+        .min_by(|a, b| a.2.total_cmp(&b.2))
+        .or(quotes.first())
+        .map(|q| q.0)
 }
 
 fn cat_row(cx: &Cx, game: &Game, view: &View, info: &CatInfo, selected: bool) -> VNode {
@@ -52,64 +80,58 @@ fn cat_row(cx: &Cx, game: &Game, view: &View, info: &CatInfo, selected: bool) ->
     } else {
         Color::srgba(0.45, 0.45, 0.55, 1.0)
     };
-    // vùng chọn mèo (portrait + tên) là một nút phẳng riêng để không “nuốt” click của nút Lên cấp
+    let sub = if info.unlocked {
+        text(
+            cx,
+            format!(
+                "{} · {}",
+                cx.tf("level_short", &[&info.level.to_string()]),
+                cx.tf("dps", &[&fmt_num(info.dps)])
+            ),
+            Fs::Small,
+            Ink::Muted,
+        )
+    } else {
+        let UnlockReq::Stage { global_stage, .. } = info.unlock;
+        let (z, s) = zone_stage(global_stage);
+        text(
+            cx,
+            cx.tf("locked_req", &[&z.to_string(), &s.to_string()]),
+            Fs::Small,
+            if info.unlock_reachable {
+                Ink::Good
+            } else {
+                Ink::Muted
+            },
+        )
+    };
+    // vùng chọn mèo (portrait + tên) là nút phẳng riêng để không “nuốt” click của nút Lên cấp
     let mut who = VNode::boxed(Node {
-        column_gap: px(S2),
-        align_items: AlignItems::Center,
-        padding: UiRect::all(px(2.0)),
+        padding: UiRect::axes(px(S1), px(1.0)),
+        flex_grow: 1.0,
         ..row(S2)
     })
     .kid(
         VNode::boxed(Node {
-            width: px(36.0),
-            height: px(36.0),
+            width: px(24.0),
+            height: px(24.0),
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
+            flex_shrink: 0.0,
             ..default()
         })
         .skin("ui_slot", 1.0)
-        .kid(icon_tint(format!("portrait_{}", cat.key()), 2.0, dim)),
+        .kid(icon_tint(format!("portrait_{}", cat.key()), 1.0, dim)),
     )
-    .kid({
-        let mut c = vbox(0.0).kid(
-            hbox(S1)
-                .kid(text_full(cx, name, Fs::Body, Ink::Text, true))
-                .kid(text(
-                    cx,
-                    cx.t(&format!("role_{}", cat.key())),
-                    Fs::Small,
-                    Ink::Accent,
-                )),
-        );
-        if info.unlocked {
-            c = c.kid(text(
-                cx,
-                format!(
-                    "{} · {}",
-                    cx.tf("level_short", &[&info.level.to_string()]),
-                    cx.tf("dps", &[&fmt_num(info.dps)])
-                ),
-                Fs::Small,
-                Ink::Muted,
-            ));
-        } else {
-            let UnlockReq::Stage { global_stage, .. } = info.unlock;
-            let (z, s) = zone_stage(global_stage);
-            c = c.kid(text(
-                cx,
-                cx.tf("locked_req", &[&z.to_string(), &s.to_string()]),
-                Fs::Small,
-                if info.unlock_reachable {
-                    Ink::Good
-                } else {
-                    Ink::Muted
-                },
-            ));
-        }
-        c
-    });
+    .kid(text_full(cx, name, Fs::Body, Ink::Text, true))
+    .kid(sub)
+    .tip(format!(
+        "{name} · {}\n{}",
+        cx.t(&format!("role_{}", cat.key())),
+        cx.t(&format!("skill_{}_name", cat.key()))
+    ));
     if info.unlocked {
-        who = who.action(Action::SelectCat(if selected { None } else { Some(cat) }));
+        who = who.action(Action::SelectCat(Some(cat)));
         if selected {
             who = who.skin("ui_tab_active", cx.k);
         }
@@ -130,11 +152,10 @@ fn cat_row(cx: &Cx, game: &Game, view: &View, info: &CatInfo, selected: bool) ->
                 mode: view.buy,
             }),
             q.affordable && q.levels > 0,
-            BTN_H,
+            BTN_H_SMALL,
         );
-        b.p.node.min_width = px(108.0);
-        b = b.kids(price(cx, "ic_fish", q.cost, q.affordable));
-        b
+        b.p.node.min_width = px(104.0);
+        b.kids(price(cx, "ic_fish", q.cost, q.affordable))
     } else {
         let UnlockReq::Stage { cost, .. } = info.unlock;
         let can = info.unlock_reachable && game.hud().fish >= cost;
@@ -144,31 +165,14 @@ fn cat_row(cx: &Cx, game: &Game, view: &View, info: &CatInfo, selected: bool) ->
             cx.t("btn_unlock"),
             Action::Cmd(Command::Unlock { cat }),
             can,
-            BTN_H,
+            BTN_H_SMALL,
         );
-        b.p.node.min_width = px(108.0);
+        b.p.node.min_width = px(104.0);
         b.kids(price(cx, "ic_fish", cost, can))
     };
-    let mut r = hbox(S2).kid(who).kid(spacer());
-    if selected {
-        r = r.kid(
-            VNode::boxed(Node {
-                width: px(BTN_H),
-                height: px(BTN_H),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                flex_shrink: 0.0,
-                ..default()
-            })
-            .skin("ui_btn", cx.k)
-            .action(Action::SelectCat(None))
-            .tip(cx.t("btn_back"))
-            .kid(icon_k("ic_back", 1.0)),
-        );
-    }
-    let mut row = r.kid(right);
+    let mut row = hbox(S2).kid(who).kid(right);
     row.p.node.width = px(INNER_W);
-    row.p.node.height = px(ROW_H + S1);
+    row.p.node.height = px(ROW_H);
     row
 }
 
@@ -305,47 +309,63 @@ fn detail(cx: &Cx, info: &CatInfo) -> VNode {
         r.p.node.width = px(half);
         talents = talents.kid(r.tip(cx.t(&format!("talent_{}_desc", t.key()))));
     }
-    let skill = vbox(2.0)
-        .kid(section(cx, "hdr_skill"))
-        .kid(
-            hbox(S2)
-                .kid(
-                    VNode::boxed(Node {
-                        width: px(36.0),
-                        height: px(36.0),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        ..default()
-                    })
-                    .skin("ui_slot", 1.0)
-                    .kid(icon_k(format!("skill_{}", cat.key()), 2.0)),
-                )
-                .kid(
-                    vbox(0.0)
-                        .kid(text_full(
-                            cx,
-                            cx.t(&format!("skill_{}_name", cat.key())),
-                            Fs::Small,
-                            Ink::Text,
-                            true,
-                        ))
-                        .kid(text(
-                            cx,
-                            cx.tf("skill_cd", &[&format!("{:.0}", info.skill_cd_secs)]),
-                            Fs::Small,
-                            Ink::Muted,
-                        )),
-                ),
-        )
-        .kid(para(
-            cx,
-            cx.t(&format!("skill_{}_desc", cat.key())),
-            Fs::Small,
-            Ink::Muted,
-            half,
-        ));
+    let skill = vbox(2.0).kid(section(cx, "hdr_skill")).kid(
+        hbox(S2)
+            .kid(
+                VNode::boxed(Node {
+                    width: px(36.0),
+                    height: px(36.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                })
+                .skin("ui_slot", 1.0)
+                .kid(icon_k(format!("skill_{}", cat.key()), 2.0)),
+            )
+            .kid(
+                vbox(0.0)
+                    .kid(text_full(
+                        cx,
+                        cx.t(&format!("skill_{}_name", cat.key())),
+                        Fs::Small,
+                        Ink::Text,
+                        true,
+                    ))
+                    .kid(text(
+                        cx,
+                        cx.tf("skill_cd", &[&format!("{:.0}", info.skill_cd_secs)]),
+                        Fs::Small,
+                        Ink::Muted,
+                    )),
+            )
+            .tip(format!(
+                "{}\n{}",
+                cx.t(&format!("skill_{}_name", cat.key())),
+                cx.t(&format!("skill_{}_desc", cat.key()))
+            )),
+    );
     let right = vbox(S2).kid(talents).kid(skill);
     let mut d = hbox(S3).kid(left).kid(right);
     d.p.node.align_items = AlignItems::FlexStart;
     d
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn detail_always_has_a_cat() {
+        let q = [
+            (CatId::Muop, true, 50.0),
+            (CatId::Xiem, true, 20.0),
+            (CatId::Map, false, 5.0),
+        ];
+        assert_eq!(pick_shown(None, &q), Some(CatId::Xiem));
+        assert_eq!(pick_shown(Some(CatId::Map), &q), Some(CatId::Map));
+        // mèo chọn chưa mở ⇒ bỏ qua
+        assert_eq!(pick_shown(Some(CatId::Mun), &q), Some(CatId::Xiem));
+        let none = [(CatId::Muop, false, 50.0), (CatId::Xiem, false, 20.0)];
+        assert_eq!(pick_shown(None, &none), Some(CatId::Muop));
+        assert_eq!(pick_shown(None, &[]), None);
+    }
 }
