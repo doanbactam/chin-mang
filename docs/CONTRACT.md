@@ -7,7 +7,11 @@
 | Định dạng atlas | `assets/art/atlas.json`: `{ "size":[w,h], "frames": { name: {x,y,w,h,ax,ay, slice?} } }` (anchor tính từ góc trên-trái của sprite, đơn vị pixel) | art | game |
 | Âm thanh | SPEC §9, `assets/audio/<tên>.ogg` (hoặc `.wav`), `assets/audio/audio.json` liệt kê tên + loại (sfx/music) | audio | game |
 | Font | `assets/fonts/ui.ttf` + `assets/fonts/LICENSE-ui.txt` | audio/font | game |
-| Ảnh chụp web | `?shot=<tên>` (SPEC §10.2), trang báo sẵn sàng bằng `window.__CM_READY = true` (sau ≥ 20 frame), lỗi bằng console.error | game | verify |
-| Bản web | `dist/web/index.html` + `chin_mang.js` + `chin_mang_bg.wasm` + `assets/` | verify (build script) | verify |
+| Ảnh chụp web | `index.html?shot=<tên>&bg=white\|black\|busy&lang=vi\|en&scale=1..4` (mặc định bg=busy, lang=vi, scale=2; tên theo SPEC §10.2, danh sách trong `tools/verify/shots.mjs`). Game tự đọc `location.search`; báo sẵn sàng bằng `window.__CM_READY = true` (sau ≥ 20 frame, cảnh đã dựng xong); lỗi bằng console.error. shots.mjs fail khi: console.error / pageerror / HTTP ≥ 400 / quá 120 s / canvas trống | game | verify |
+| Bản web | `node tools/verify/build-web.mjs` → `dist/web/index.html` + `chin_mang.js` + `chin_mang_bg.wasm` + `assets/`. Harness `tools/verify/web/index.html` có sẵn `<canvas id="bevy" width=1280 height=600>`, nền `?bg` vẽ bằng CSS dưới canvas. Game trên wasm PHẢI: `Window { canvas: Some("#bevy"), fit_canvas_to_parent: false, resolution: 1280×600, transparent: true, .. }`, `ClearColor(Color::NONE)`, `AssetPlugin { meta_check: AssetMetaCheck::Never }`, không vẽ nền desktop. Feature Bevy: xem DECISIONS (verify) | verify (build script, harness) | game, verify |
 
 Đổi hợp đồng nào ⇒ sửa bảng này + báo người dùng hợp đồng.
+
+## Thay đổi
+
+- 2026-11-13 · core · Không đổi chữ ký nào trong `api.rs` / `game.rs`. Ghi chú ngữ nghĩa: `Hud.max_global_stage` và `PrestigePreview` dùng max **trong mạng hiện tại** (reset về màn xuất phát khi Chín Mạng); thành tựu khu/vòng dùng max mọi thời đại. `enemies()` gồm cả quái đang chết (`anim = Death`, `hp = 0`) cho tới khi hết animation. `carton().x` bám theo `party_x + 60`. `Game` là `Send + Sync`.

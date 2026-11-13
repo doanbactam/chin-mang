@@ -94,7 +94,11 @@ impl EnemyKind {
     pub fn is_boss(self) -> bool {
         matches!(
             self,
-            EnemyKind::RatKing | EnemyKind::CrowLord | EnemyKind::Eel | EnemyKind::Mastiff | EnemyKind::VacuumTitan
+            EnemyKind::RatKing
+                | EnemyKind::CrowLord
+                | EnemyKind::Eel
+                | EnemyKind::Mastiff
+                | EnemyKind::VacuumTitan
         )
     }
     /// Quái bay (crow, crow_lord): view vẽ cao hơn; lõi đã cộng vào `y`.
@@ -132,7 +136,12 @@ pub enum Rarity {
     Legendary,
 }
 impl Rarity {
-    pub const ALL: [Rarity; 4] = [Rarity::Common, Rarity::Rare, Rarity::Epic, Rarity::Legendary];
+    pub const ALL: [Rarity; 4] = [
+        Rarity::Common,
+        Rarity::Rare,
+        Rarity::Epic,
+        Rarity::Legendary,
+    ];
     pub fn key(self) -> &'static str {
         match self {
             Rarity::Common => "common",
@@ -626,23 +635,49 @@ pub struct Stats {
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Command {
-    LevelUp { cat: CatId, mode: BuyMode },
-    Unlock { cat: CatId },
-    TalentUp { cat: CatId, slot: u8 },
-    Equip { cat: CatId, item: ItemId },
-    Unequip { cat: CatId, slot: Slot },
+    LevelUp {
+        cat: CatId,
+        mode: BuyMode,
+    },
+    Unlock {
+        cat: CatId,
+    },
+    TalentUp {
+        cat: CatId,
+        slot: u8,
+    },
+    Equip {
+        cat: CatId,
+        item: ItemId,
+    },
+    Unequip {
+        cat: CatId,
+        slot: Slot,
+    },
     /// None = cả đội
-    EquipBest { cat: Option<CatId> },
-    UpgradeItem { item: ItemId },
-    Salvage { item: ItemId },
+    EquipBest {
+        cat: Option<CatId>,
+    },
+    UpgradeItem {
+        item: ItemId,
+    },
+    Salvage {
+        item: ItemId,
+    },
     /// None = tắt tự rã; Some(r) = rã mọi món có độ hiếm ≤ r
-    SetAutoSalvage { max: Option<Rarity> },
+    SetAutoSalvage {
+        max: Option<Rarity>,
+    },
     Catnip,
     OpenBox,
-    BuySoul { upgrade: SoulUpgrade },
+    BuySoul {
+        upgrade: SoulUpgrade,
+    },
     Prestige,
     RetryBoss,
-    DismissTutorial { id: TutorialId },
+    DismissTutorial {
+        id: TutorialId,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -661,53 +696,154 @@ pub enum CmdError {
 /// Sự kiện để view phát âm thanh / hiệu ứng / số nổi. Lấy bằng [`Game::drain_events`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
-    Damage { target: EntityId, x: f32, y: f32, amount: f64, crit: bool, to_cat: bool },
-    Heal { target: EntityId, x: f32, y: f32, amount: f64 },
-    CatAttack { cat: CatId },
-    CatSkill { cat: CatId, x: f32 },
-    CatDown { cat: CatId },
-    CatRevive { cat: CatId },
-    EnemyAttack { entity: EntityId, kind: EnemyKind },
-    EnemyDied { entity: EntityId, kind: EnemyKind, x: f32, y: f32 },
-    BossAppear { kind: EnemyKind },
-    BossSpecial { kind: EnemyKind, x: f32 },
-    BossDefeated { kind: EnemyKind },
-    Stunned { target: EntityId, x: f32, y: f32 },
-    StageCleared { zone: u32, stage: u32 },
-    StageFailed { zone: u32, stage: u32 },
-    ZoneEntered { zone: u32, cycle: u32 },
-    Loot { currency: Currency, amount: f64, x: f32 },
-    GearDropped { item: ItemId, rarity: Rarity, x: f32 },
-    LevelUp { cat: CatId, level: u32 },
-    CatUnlocked { cat: CatId },
-    ItemUpgraded { item: ItemId, upgrade: u8 },
-    ItemSalvaged { item: ItemId, yarn: f64 },
-    BoxSpawned { x: f32 },
-    BoxOpened { x: f32 },
+    Damage {
+        target: EntityId,
+        x: f32,
+        y: f32,
+        amount: f64,
+        crit: bool,
+        to_cat: bool,
+    },
+    Heal {
+        target: EntityId,
+        x: f32,
+        y: f32,
+        amount: f64,
+    },
+    CatAttack {
+        cat: CatId,
+    },
+    CatSkill {
+        cat: CatId,
+        x: f32,
+    },
+    CatDown {
+        cat: CatId,
+    },
+    CatRevive {
+        cat: CatId,
+    },
+    EnemyAttack {
+        entity: EntityId,
+        kind: EnemyKind,
+    },
+    EnemyDied {
+        entity: EntityId,
+        kind: EnemyKind,
+        x: f32,
+        y: f32,
+    },
+    BossAppear {
+        kind: EnemyKind,
+    },
+    BossSpecial {
+        kind: EnemyKind,
+        x: f32,
+    },
+    BossDefeated {
+        kind: EnemyKind,
+    },
+    Stunned {
+        target: EntityId,
+        x: f32,
+        y: f32,
+    },
+    StageCleared {
+        zone: u32,
+        stage: u32,
+    },
+    StageFailed {
+        zone: u32,
+        stage: u32,
+    },
+    ZoneEntered {
+        zone: u32,
+        cycle: u32,
+    },
+    Loot {
+        currency: Currency,
+        amount: f64,
+        x: f32,
+    },
+    GearDropped {
+        item: ItemId,
+        rarity: Rarity,
+        x: f32,
+    },
+    LevelUp {
+        cat: CatId,
+        level: u32,
+    },
+    CatUnlocked {
+        cat: CatId,
+    },
+    ItemUpgraded {
+        item: ItemId,
+        upgrade: u8,
+    },
+    ItemSalvaged {
+        item: ItemId,
+        yarn: f64,
+    },
+    BoxSpawned {
+        x: f32,
+    },
+    BoxOpened {
+        x: f32,
+    },
     BoxExpired,
     CatnipStarted,
     CatnipEnded,
-    Prestiged { souls: f64, lives_used: u32 },
-    SoulBought { upgrade: SoulUpgrade, rank: u32 },
-    Achievement { id: AchId },
-    Tutorial { id: TutorialId },
+    Prestiged {
+        souls: f64,
+        lives_used: u32,
+    },
+    SoulBought {
+        upgrade: SoulUpgrade,
+        rank: u32,
+    },
+    Achievement {
+        id: AchId,
+    },
+    Tutorial {
+        id: TutorialId,
+    },
 }
 
 /// Thiết lập nhanh trạng thái cho test / ảnh chụp (`?shot=`) / debug. Không dùng trong gameplay thường.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Cheat {
     /// Nhảy tới vị trí (cycle, zone 1..=5, stage 1..=10) và cập nhật max_global_stage nếu cao hơn.
-    Goto { cycle: u32, zone: u32, stage: u32 },
-    Give { currency: Currency, amount: f64 },
+    Goto {
+        cycle: u32,
+        zone: u32,
+        stage: u32,
+    },
+    Give {
+        currency: Currency,
+        amount: f64,
+    },
     UnlockAll,
-    SetLevel { cat: CatId, level: u32 },
+    SetLevel {
+        cat: CatId,
+        level: u32,
+    },
     /// Thêm một món vào kho.
-    GiveItem { slot: Slot, rarity: Rarity, ilvl: u32, upgrade: u8 },
+    GiveItem {
+        slot: Slot,
+        rarity: Rarity,
+        ilvl: u32,
+        upgrade: u8,
+    },
     /// Chạy n tick ngay.
-    Advance { ticks: u32 },
+    Advance {
+        ticks: u32,
+    },
     /// Thả hộp carton ngay trước đội.
     SpawnBox,
-    UnlockAchievement { id: AchId },
+    UnlockAchievement {
+        id: AchId,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
