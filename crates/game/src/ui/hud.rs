@@ -15,8 +15,9 @@ use cm_core::{CatId, Command, Game, Hud, fmt_num};
 pub fn right_cluster_w(k: f32) -> f32 {
     3.0 * btn_size(k) + 2.0 * S2 + S2
 }
+/// Tối thiểu 24 px để dễ bấm bằng chuột ở HUD ×1 (icon 12 px + lề 6 px mỗi bên).
 pub fn btn_size(k: f32) -> f32 {
-    20.0 * k
+    (20.0 * k).max(24.0)
 }
 /// Hệ số art của HUD theo bố cục: một nửa hệ số thế giới (làm tròn lên) để thế giới là nhân vật chính
 /// (×1, ×2 → HUD ×1; ×3, ×4 → HUD ×2).
@@ -289,5 +290,11 @@ mod tests {
         assert_eq!(super::hud_k_for(2.0), 1.0);
         assert_eq!(super::hud_k_for(3.0), 2.0);
         assert_eq!(super::hud_k_for(4.0), 2.0);
+    }
+
+    #[test]
+    fn hud_buttons_stay_clickable() {
+        assert_eq!(super::btn_size(1.0), 24.0);
+        assert_eq!(super::btn_size(2.0), 40.0);
     }
 }
