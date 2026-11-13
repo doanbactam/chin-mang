@@ -1,0 +1,10 @@
+[package]
+name = "chin-mang"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+cm-core.workspace = true
+bevy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
