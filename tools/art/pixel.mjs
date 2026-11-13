@@ -1,11 +1,11 @@
 // Zero-dependency pixel-art toolkit (Node >= 18). Seed for the game's art pipeline.
 // Sprites are drawn in an indexed canvas (1 char = 1 palette colour), then exported as PNG.
-// Usage: see tools/art/anchors.mjs. Rules for using it: SPEC.md §9.
+// Usage: tools/art/sprites/*.mjs, built by tools/art/build-atlas.mjs. Rules: SPEC.md §8.
 import { deflateSync } from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-// ── Master palette (SPEC §9.2). One char per colour. '.' = transparent. ─────────────
+// ── Master palette (SPEC §8.2). One char per colour. '.' = transparent. ─────────────
 export const PALETTE = {
   k: '#1b1b2f', n: '#2b2d52',                                       // outline, deep shadow
   a: '#1f4a3a', b: '#2f6b3a', c: '#4c9a4a', d: '#7cc45a', e: '#b4e06e', // greens
@@ -17,6 +17,12 @@ export const PALETTE = {
   B: '#2a4a8a', C: '#3f7fd1', D: '#7fd0f0', E: '#d8f4ff',           // blues
   m: '#4b2a6b', M: '#8a4fb5', L: '#d08be8',                         // purples (the Gloom)
   H: '#e86a92', w: '#f6f2e6',                                       // pink, off-white
+  // ── Chín Mạng additions (max 8, see docs/DECISIONS.md) ──
+  T: '#e0873a', I: '#ffc98a',                                       // tabby orange base / light (Mướp)
+  W: '#f4e9d4',                                                     // siamese cream (Xiêm)
+  A: '#463e5c', F: '#6b6088',                                       // black fur base / sheen (Mun) — lighter than k/n
+  K: '#f4a6b0',                                                     // soft pink nose / paw pads / inner ear
+  P: '#14142ab8', Q: '#2b2d52c8',                                   // ui_plate: dark translucent fill + dot grid (#rrggbbaa)
 };
 // Shading ramps: [shadow, base, highlight]. Used by Px.shade().
 export const RAMPS = {
@@ -24,9 +30,13 @@ export const RAMPS = {
   stone: ['s', 't', 'u'], steel: ['t', 'u', 'v'], red: ['r', 'R', 'o'], fire: ['x', 'y', 'z'],
   blue: ['B', 'C', 'D'], ice: ['C', 'D', 'E'], gloom: ['m', 'M', 'L'], skin: ['p', 'q', 'q'],
 };
-const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+// '#rrggbb' → [r,g,b,255]; '#rrggbbaa' → [r,g,b,a] (alpha only used by translucent UI colours).
+export const hex = (h) => [1, 3, 5, 7].map((i) => (i === 7 && h.length < 9 ? 255 : parseInt(h.slice(i, i + 2), 16)));
 
 export class Px {
+  // strict: reject non-palette chars on set(). Sprite modules that draw with role letters (recoloured to
+  // palette chars at the end) turn it off; build-atlas lints the final pixels against PALETTE anyway.
+  static strict = true;
   constructor(w, h, fill = '.') {
     this.w = w; this.h = h;
     this.d = Array.from({ length: h }, () => Array(w).fill(fill));
@@ -42,7 +52,7 @@ export class Px {
   get(x, y) { return this.in(x, y) ? this.d[y][x] : '.'; }
   set(x, y, c) {
     if (!this.in(x, y)) return this;
-    if (c !== '.' && !PALETTE[c]) throw new Error(`unknown palette char "${c}"`);
+    if (c !== '.' && Px.strict && !PALETTE[c]) throw new Error(`unknown palette char "${c}"`);
     this.d[y][x] = c; return this;
   }
   clone() { const p = new Px(this.w, this.h); p.d = this.d.map((r) => [...r]); return p; }
@@ -100,7 +110,7 @@ export class Px {
     const W = this.w * scale, H = this.h * scale, out = Buffer.alloc(W * H * 4);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const c = this.d[(y / scale) | 0][(x / scale) | 0]; if (c === '.') continue;
-      const [r, g, b] = hex(PALETTE[c]); out.set([r, g, b, 255], (y * W + x) * 4);
+      out.set(hex(PALETTE[c]), (y * W + x) * 4);
     }
     return { w: W, h: H, data: out };
   }
