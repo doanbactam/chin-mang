@@ -162,6 +162,8 @@ pub struct State {
     pub max_gs: u32,
     /// max global_stage mọi thời đại (thành tựu)
     pub best_gs: u32,
+    /// global_stage xuất phát của mạng hiện tại (0, hoặc +5·head_start sau prestige)
+    pub life_start_gs: u32,
     pub farming: bool,
     pub farm_t: f64,
     pub phase: Phase,
@@ -228,6 +230,7 @@ impl Default for State {
             stage: 1,
             max_gs: 0,
             best_gs: 0,
+            life_start_gs: 0,
             farming: false,
             farm_t: 0.0,
             phase: Phase::Fight,

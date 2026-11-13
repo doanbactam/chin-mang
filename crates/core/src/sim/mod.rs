@@ -205,7 +205,8 @@ impl Game {
             self.s.stage = 1;
             if self.s.zone >= ZONES {
                 self.s.zone = 1;
-                self.s.cycle += 1;
+                // trần an toàn chống tràn số (không thể đạt khi chơi thật)
+                self.s.cycle = (self.s.cycle + 1).min(MAX_CYCLE);
             } else {
                 self.s.zone += 1;
             }
@@ -387,7 +388,7 @@ impl Game {
     /// Đặt vị trí mới (cheat / prestige): xóa trận hiện tại và bắt đầu màn.
     pub(crate) fn goto_stage(&mut self, cycle: u32, zone: u32, stage: u32) {
         let old_zone = (self.s.cycle, self.s.zone);
-        self.s.cycle = cycle;
+        self.s.cycle = cycle.min(MAX_CYCLE);
         self.s.zone = zone.clamp(1, ZONES);
         self.s.stage = stage.clamp(1, STAGES);
         self.s.farming = false;

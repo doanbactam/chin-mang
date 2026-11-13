@@ -350,6 +350,11 @@ pub const CATNIP_SPEED: f64 = 0.4;
 
 // ── Chín Mạng ──
 pub const PRESTIGE_MIN_GS: u32 = 25;
+/// Phải tiến thêm ít nhất chừng này màn so với màn xuất phát của mạng hiện tại mới được prestige.
+pub const PRESTIGE_MIN_PROGRESS: u32 = 10;
+/// Trần an toàn (chống tràn số khi nhập save sửa tay): vòng và cấp tối đa.
+pub const MAX_CYCLE: u32 = 100;
+pub const MAX_LEVEL: u32 = 5000;
 pub const PRESTIGE_BASE_GS: f64 = 20.0;
 pub const PRESTIGE_EXP: f64 = 1.5;
 pub const PRESTIGE_DIV: f64 = 26.0;

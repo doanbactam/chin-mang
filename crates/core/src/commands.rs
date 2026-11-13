@@ -38,6 +38,9 @@ impl Game {
             return Err(CmdError::Locked);
         }
         let q = rules::level_quote(&self.s, cat, mode);
+        if self.s.cat(cat).level.saturating_add(q.levels) > MAX_LEVEL {
+            return Err(CmdError::MaxRank);
+        }
         if !q.affordable || q.levels == 0 {
             return Err(CmdError::NotEnough(Currency::Fish));
         }
@@ -124,21 +127,27 @@ impl Game {
         if !self.s.cat(cat).unlocked {
             return Err(CmdError::Locked);
         }
-        let item = match self.locate_item(id) {
+        // Món cũ của mèo nhận đi vào đúng chỗ món mới vừa rời (kho không bao giờ vượt trần).
+        match self.locate_item(id) {
             None => return Err(CmdError::NoSuchItem),
-            Some(Loc::Inv(i)) => self.s.inventory.remove(i),
+            Some(Loc::Inv(i)) => {
+                let item = self.s.inventory.remove(i);
+                let slot = item.slot.index();
+                if let Some(old) = self.s.cat_mut(cat).equipped[slot].replace(item) {
+                    self.s.inventory.insert(i, old);
+                }
+            }
             Some(Loc::Worn(c, k)) => {
                 if c == cat {
                     return Err(CmdError::NothingToDo);
                 }
-                self.s.cat_mut(c).equipped[k]
+                let item = self.s.cat_mut(c).equipped[k]
                     .take()
-                    .ok_or(CmdError::NoSuchItem)?
+                    .ok_or(CmdError::NoSuchItem)?;
+                // hoán đổi: món cũ của mèo nhận sang mèo kia (cùng ô)
+                let old = self.s.cat_mut(cat).equipped[k].replace(item);
+                self.s.cat_mut(c).equipped[k] = old;
             }
-        };
-        let slot = item.slot.index();
-        if let Some(old) = self.s.cat_mut(cat).equipped[slot].replace(item) {
-            self.s.inventory.push(old);
         }
         rules::recalc(&mut self.s);
         Ok(())
@@ -302,10 +311,10 @@ impl Game {
     }
 
     fn cmd_prestige(&mut self) -> Result<(), CmdError> {
-        if self.s.max_gs < PRESTIGE_MIN_GS {
+        if !rules::prestige_available(&self.s) {
             return Err(CmdError::NotAvailable);
         }
-        let souls = rules::prestige_gain(self.s.max_gs);
+        let souls = rules::prestige_souls(&self.s);
         self.s.soul += souls;
         self.s.souls_earned += souls;
         self.s.lives_used += 1;
@@ -342,6 +351,7 @@ impl Game {
         let start_gs = soul_def(start).per_rank as u32 * self.s.soul_rank(start);
         let (cycle, zone, stage) = split_gs(start_gs);
         self.s.max_gs = start_gs;
+        self.s.life_start_gs = start_gs;
         self.s.income_fish.iter_mut().for_each(|v| *v = 0.0);
         self.s.income_yarn.iter_mut().for_each(|v| *v = 0.0);
         self.s.income_count = 0;
@@ -400,7 +410,7 @@ impl Game {
                 }
             }
             Cheat::SetLevel { cat, level } => {
-                self.s.cat_mut(cat).level = level.max(1);
+                self.s.cat_mut(cat).level = level.clamp(1, MAX_LEVEL);
                 rules::recalc(&mut self.s);
             }
             Cheat::GiveItem {

@@ -278,9 +278,9 @@ impl Game {
     }
     pub fn prestige_preview(&self) -> PrestigePreview {
         PrestigePreview {
-            available: self.s.max_gs >= PRESTIGE_MIN_GS,
-            required_global_stage: PRESTIGE_MIN_GS,
-            souls_gain: rules::prestige_gain(self.s.max_gs),
+            available: rules::prestige_available(&self.s),
+            required_global_stage: rules::prestige_required(&self.s),
+            souls_gain: rules::prestige_souls(&self.s),
             lives_used: self.s.lives_used,
         }
     }
@@ -323,9 +323,9 @@ impl Game {
             };
         }
         // 3) Chín Mạng
-        if s.max_gs >= PRESTIGE_MIN_GS {
+        if rules::prestige_available(s) {
             return Goal::Prestige {
-                souls: rules::prestige_gain(s.max_gs),
+                souls: rules::prestige_souls(s),
             };
         }
         // 4) màn mở khóa mèo kế tiếp
@@ -370,7 +370,16 @@ impl Game {
         save::save(&self.s, now_unix)
     }
     pub fn load(json: &str) -> Result<Game, LoadError> {
-        save::load(json).map(|s| Game { s, ev: Vec::new() })
+        let mut g = save::load(json).map(|s| Game { s, ev: Vec::new() })?;
+        // sanitize có thể bỏ quái hỏng: đợt dang dở mà không còn quái → chơi lại màn (không được qua màn miễn phí)
+        let s = &g.s;
+        if s.phase == Phase::Fight
+            && s.wave_killed < s.wave_total
+            && s.enemies.iter().all(|e| e.dead)
+        {
+            g.start_stage();
+        }
+        Ok(g)
     }
     /// `saved_at` của bản lưu đã tải (0 nếu ván mới).
     pub fn saved_at(&self) -> u64 {
@@ -428,6 +437,6 @@ impl Game {
         {
             return true;
         }
-        s.max_gs >= PRESTIGE_MIN_GS && rules::prestige_gain(s.max_gs) >= 3.0
+        rules::prestige_available(s) && rules::prestige_souls(s) >= 3.0
     }
 }

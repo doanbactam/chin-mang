@@ -104,6 +104,7 @@ fn deterministic_same_seed_same_commands() {
         b.tick();
         if t % 1000 == 0 {
             assert_eq!(a.state_hash(), b.state_hash(), "lệch ở tick {t}");
+            assert!(a.inventory().len() <= INVENTORY_CAP);
         }
     }
     assert_eq!(a.state_hash(), b.state_hash());
@@ -2026,4 +2027,239 @@ fn wealth_achievement_from_real_income() {
         *e == Event::Achievement { id: AchId::Fish1M }
     });
     assert!(ev.is_some());
+}
+
+// ───────────────────────────── hồi quy (review độc lập) ─────────────────────────────
+
+#[test]
+fn regression_prestige_requires_progress_in_this_life() {
+    let mut g = Game::new(1);
+    g.cheat(Cheat::Give {
+        currency: Currency::Soul,
+        amount: 1e6,
+    });
+    for _ in 0..5 {
+        g.command(Command::BuySoul {
+            upgrade: SoulUpgrade::HeadStart,
+        })
+        .unwrap();
+    }
+    g.cheat(Cheat::Goto {
+        cycle: 0,
+        zone: 4,
+        stage: 6,
+    }); // gs 35
+    g.command(Command::Prestige).unwrap();
+    // xuất phát ở gs 25 = PRESTIGE_MIN_GS: không được prestige lại ngay
+    assert_eq!(g.hud().global_stage, 25);
+    let pp = g.prestige_preview();
+    assert!(!pp.available);
+    assert_eq!(pp.required_global_stage, 35);
+    assert_eq!(pp.souls_gain, 0.0);
+    let soul = g.hud().soul;
+    for _ in 0..20 {
+        assert_eq!(g.command(Command::Prestige), Err(CmdError::NotAvailable));
+    }
+    assert_eq!(g.hud().soul, soul);
+    assert_eq!(g.prestige_preview().lives_used, 1);
+    assert!(!matches!(g.next_goal(), Goal::Prestige { .. }));
+    // tiến đủ 10 màn thì được
+    g.cheat(Cheat::Goto {
+        cycle: 0,
+        zone: 4,
+        stage: 6,
+    });
+    let pp = g.prestige_preview();
+    assert!(pp.available);
+    assert!(pp.souls_gain >= 1.0);
+    g.command(Command::Prestige).unwrap();
+    assert_eq!(g.prestige_preview().lives_used, 2);
+    // save/load giữ màn xuất phát của mạng
+    let h = Game::load(&g.save(1)).unwrap();
+    assert!(!h.prestige_preview().available);
+    assert_eq!(h.prestige_preview().required_global_stage, 35);
+}
+
+fn edit_save(g: &Game, f: impl Fn(&mut serde_json::Value)) -> String {
+    let mut v: serde_json::Value = serde_json::from_str(&g.save(7)).unwrap();
+    f(&mut v["state"]);
+    v.to_string()
+}
+
+#[test]
+fn regression_hand_edited_save_is_sanitized() {
+    let mut g = Game::new(4);
+    ticks(&mut g, 30 * 20);
+    let json = edit_save(&g, |st| {
+        st["zone"] = serde_json::json!(0);
+        st["stage"] = serde_json::json!(0);
+        st["cycle"] = serde_json::json!(4_000_000_000u32);
+        st["fish"] = serde_json::json!(-5.0);
+        st["yarn"] = serde_json::Value::Null;
+        st["cats"][0]["level"] = serde_json::json!(0);
+        st["cats"][0]["talents"] = serde_json::json!([9, 9, 9]);
+        st["cats"][0]["hp"] = serde_json::json!(1e308);
+        st["soul_ranks"] = serde_json::json!([0, 0, 0, 99, 9, 99, 99]);
+    });
+    // `null` ở trường f64 là lỗi parse; các trường còn lại được kẹp
+    assert!(matches!(Game::load(&json), Err(LoadError::Parse(_))));
+    let json = edit_save(&g, |st| {
+        st["zone"] = serde_json::json!(0);
+        st["stage"] = serde_json::json!(0);
+        st["cycle"] = serde_json::json!(4_000_000_000u32);
+        st["fish"] = serde_json::json!(-5.0);
+        st["cats"][0]["level"] = serde_json::json!(0);
+        st["cats"][0]["talents"] = serde_json::json!([9, 9, 9]);
+        st["soul_ranks"] = serde_json::json!([0, 0, 0, 99, 9, 99, 99]);
+        st["inventory"] = serde_json::json!([{"id": 3, "slot": "Bell", "rarity": "Rare", "ilvl": 1, "upgrade": 200}]);
+    });
+    let mut h = Game::load(&json).unwrap();
+    let hud = h.hud();
+    assert_eq!((hud.cycle, hud.zone, hud.stage), (MAX_CYCLE, 1, 1));
+    assert_eq!(hud.fish, 0.0);
+    let info = h.cat_info(CatId::Muop);
+    assert_eq!(info.level, 1);
+    assert_eq!(info.talents.iter().map(|t| t.1).sum::<u8>(), 0);
+    assert!(
+        h.soul_shop()
+            .iter()
+            .all(|r| r.max_rank.is_none_or(|m| r.rank <= m))
+    );
+    assert_eq!(h.inventory()[0].upgrade, ITEM_MAX_UPGRADE);
+    // chạy được và lưu lại vẫn tải được
+    ticks(&mut h, 30 * 10);
+    let again = h.save(8);
+    assert!(Game::load(&again).is_ok());
+}
+
+#[test]
+fn regression_save_never_writes_non_finite() {
+    let mut g = Game::new(4);
+    ticks(&mut g, 30 * 5);
+    g.s.fish = f64::INFINITY;
+    g.s.yarn = f64::NAN;
+    g.s.cats[0].hp = f64::NAN;
+    g.s.wake_buff = f64::NEG_INFINITY;
+    if let Some(e) = g.s.enemies.first_mut() {
+        e.hp = f64::NAN;
+    }
+    let json = g.save(9);
+    let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+    for k in ["fish", "yarn", "wake_buff"] {
+        assert!(v["state"][k].is_number(), "{k} bị ghi thành null");
+    }
+    assert!(v["state"]["cats"][0]["hp"].is_number());
+    let h = Game::load(&json).unwrap();
+    assert_eq!(h.hud().fish, 0.0);
+    assert_eq!(h.hud().yarn, 0.0);
+    assert!(h.s.enemies.iter().all(|e| e.hp.is_finite()));
+    // đợt dang dở bị bỏ quái hỏng → chơi lại màn chứ không qua màn
+    assert_eq!(h.hud().stage, g.hud().stage);
+    assert!(!h.s.enemies.is_empty());
+}
+
+#[test]
+fn regression_equip_from_other_cat_swaps_and_never_overflows_inventory() {
+    let mut g = Game::new(1);
+    g.cheat(Cheat::UnlockAll);
+    g.cheat(Cheat::GiveItem {
+        slot: Slot::Claws,
+        rarity: Rarity::Epic,
+        ilvl: 1,
+        upgrade: 0,
+    });
+    let a_item = first_item(&g);
+    g.command(Command::Equip {
+        cat: CatId::Muop,
+        item: a_item,
+    })
+    .unwrap();
+    g.cheat(Cheat::GiveItem {
+        slot: Slot::Claws,
+        rarity: Rarity::Rare,
+        ilvl: 1,
+        upgrade: 0,
+    });
+    let b_item = first_item(&g);
+    g.command(Command::Equip {
+        cat: CatId::Map,
+        item: b_item,
+    })
+    .unwrap();
+    while g.inventory().len() < INVENTORY_CAP {
+        g.cheat(Cheat::GiveItem {
+            slot: Slot::Collar,
+            rarity: Rarity::Common,
+            ilvl: 0,
+            upgrade: 0,
+        });
+    }
+    // lấy món của Mướp mặc cho Mập (Mập đã có món ô đó, kho đầy) → hoán đổi
+    g.command(Command::Equip {
+        cat: CatId::Map,
+        item: a_item,
+    })
+    .unwrap();
+    assert_eq!(g.inventory().len(), INVENTORY_CAP);
+    let claws = Slot::Claws.index();
+    assert_eq!(
+        g.cat_info(CatId::Map).equipped[claws]
+            .as_ref()
+            .map(|i| i.id),
+        Some(a_item)
+    );
+    assert_eq!(
+        g.cat_info(CatId::Muop).equipped[claws]
+            .as_ref()
+            .map(|i| i.id),
+        Some(b_item)
+    );
+    // lấy từ kho đầy khi ô đã có món → món cũ vào đúng chỗ trống
+    g.cheat(Cheat::GiveItem {
+        slot: Slot::Claws,
+        rarity: Rarity::Legendary,
+        ilvl: 1,
+        upgrade: 0,
+    });
+    assert_eq!(
+        g.inventory().len(),
+        INVENTORY_CAP,
+        "GiveItem tôn trọng trần kho"
+    );
+    g.cmd_salvage_first_collar();
+    g.cheat(Cheat::GiveItem {
+        slot: Slot::Claws,
+        rarity: Rarity::Legendary,
+        ilvl: 1,
+        upgrade: 0,
+    });
+    let leg = g.inventory().last().unwrap().id;
+    let pos = g.inventory().len() - 1;
+    g.command(Command::Equip {
+        cat: CatId::Map,
+        item: leg,
+    })
+    .unwrap();
+    assert_eq!(g.inventory().len(), INVENTORY_CAP);
+    assert_eq!(g.inventory()[pos].id, a_item);
+    // EquipBest / Unequip cũng không vượt trần
+    g.command(Command::EquipBest { cat: None }).ok();
+    assert!(g.inventory().len() <= INVENTORY_CAP);
+    let _ = g.command(Command::Unequip {
+        cat: CatId::Map,
+        slot: Slot::Claws,
+    });
+    assert!(g.inventory().len() <= INVENTORY_CAP);
+}
+
+impl Game {
+    fn cmd_salvage_first_collar(&mut self) {
+        let id = self
+            .inventory()
+            .iter()
+            .find(|i| i.slot == Slot::Collar)
+            .unwrap()
+            .id;
+        self.command(Command::Salvage { item: id }).unwrap();
+    }
 }

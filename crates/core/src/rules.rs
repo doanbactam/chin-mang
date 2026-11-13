@@ -211,12 +211,32 @@ pub fn yarn_drop_amount(gs: u32) -> f64 {
     ((1 + gs / 10) as f64 * YARN_GROWTH.powi(gs as i32)).round()
 }
 
+/// Hồn theo công thức (không xét điều kiện tiến bộ của mạng): 0 nếu < PRESTIGE_MIN_GS.
 pub fn prestige_gain(max_gs: u32) -> f64 {
     if max_gs < PRESTIGE_MIN_GS {
         return 0.0;
     }
     let x = (max_gs as f64 - PRESTIGE_BASE_GS).max(0.0);
     (x.powf(PRESTIGE_EXP) / PRESTIGE_DIV).floor().max(1.0)
+}
+
+/// global_stage cần đạt trong mạng này để được prestige:
+/// `max(PRESTIGE_MIN_GS, màn xuất phát + PRESTIGE_MIN_PROGRESS)`.
+pub fn prestige_required(s: &State) -> u32 {
+    PRESTIGE_MIN_GS.max(s.life_start_gs.saturating_add(PRESTIGE_MIN_PROGRESS))
+}
+
+pub fn prestige_available(s: &State) -> bool {
+    s.max_gs >= prestige_required(s)
+}
+
+/// Hồn thực nhận nếu prestige ngay (0 khi chưa đủ điều kiện).
+pub fn prestige_souls(s: &State) -> f64 {
+    if prestige_available(s) {
+        prestige_gain(s.max_gs)
+    } else {
+        0.0
+    }
 }
 
 pub fn soul_cost(u: SoulUpgrade, rank: u32) -> Option<f64> {
