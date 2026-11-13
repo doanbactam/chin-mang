@@ -55,6 +55,8 @@ pub(crate) fn load(json: &str) -> Result<State, LoadError> {
     let _ = sf.version;
     let mut s = sf.state;
     s.saved_at = sf.saved_at;
+    // bản lưu có ít thành tựu hơn (trước khi thêm fish_1m/fish_1b) → nới mảng
+    s.achievements.resize(AchId::ALL.len(), None);
     // công thức có thể đã đổi giữa các bản: tính lại chỉ số nếu lệch
     let stale = CatId::ALL
         .iter()

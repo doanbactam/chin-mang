@@ -40,6 +40,8 @@ pub(crate) fn ach_met(s: &State, id: AchId) -> bool {
         Boxes10 => s.stats.boxes_opened >= 10,
         Boxes100 => s.stats.boxes_opened >= 100,
         Catnip50 => s.stats.catnip_used >= 50,
+        Fish1M => s.stats.fish_earned >= 1e6,
+        Fish1B => s.stats.fish_earned >= 1e9,
     }
 }
 

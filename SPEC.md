@@ -131,7 +131,7 @@ Boss (HP ×1, sprite 32×32):
 - Bonus "Vừa ngủ dậy": `x2 cá` trong `min(elapsed/60, 480) s`.
 - Hiện **màn tóm tắt vắng mặt** (§7.4) — chỉ có thưởng, không có phạt.
 
-### 2.10 Thành tựu (24, lưu cục bộ)
+### 2.10 Thành tựu (26, lưu cục bộ)
 Đạt khu 2/3/4/5, hoàn thành vòng 1; hạ mỗi boss lần đầu (5); mở khóa mỗi mèo (3); mèo bất kỳ cấp 25/50/100; nhặt trang bị `legendary` đầu tiên; nâng 1 món lên +10; dùng mạng thứ 2/5/9; mở 10/100 hộp carton; dùng catnip 50 lần; tổng cá kiếm được 1e6 / 1e9. Mỗi thành tựu có id, tên vi/en, mô tả, icon chung theo nhóm. Có trang thành tựu trong bảng Cài đặt.
 
 ## 3. Hợp đồng lõi (crate `cm-core`)
@@ -182,7 +182,7 @@ Thanh tiêu đề: 4 tab icon + chữ ngắn: **Mèo · Đồ · Hồn · Thành
 - **Mèo:** danh sách 4 hàng (portrait, tên, cấp, DPS rút gọn, nút `Lên cấp — giá` có chế độ `×1 / ×10 / Max` chuyển ở đầu tab). Mèo khóa hiện điều kiện + giá. Chọn một mèo mở chi tiết inline: chỉ số, 3 ô trang bị, 3 tài năng (nút +, bậc x/5), kỹ năng tự động (icon + mô tả).
 - **Đồ:** lưới ô 8×5 (ô 32 px), lọc theo ô/độ hiếm, sắp xếp; chọn món → so sánh với món đang mặc của mèo đang chọn (mũi tên xanh/đỏ + số), nút Mặc / Nâng (giá len) / Rã. Nút "Mặc đồ tốt nhất (cả đội)". Cài đặt tự rã.
 - **Hồn:** số hồn, nút "Dùng một mạng" (giữ 2 s) kèm số hồn sẽ nhận và điều kiện; danh sách cửa hàng hồn; dải 9 dấu ấn mạng.
-- **Thành tựu:** lưới 24 icon (khóa = mờ + ổ khóa), tooltip tên + mô tả.
+- **Thành tựu:** lưới 26 icon (khóa = mờ + ổ khóa), tooltip tên + mô tả.
 - **Thanh "Mục tiêu kế"** ở đáy bảng: một dòng (vd: "Hạ Vua Chuột — khu 1 màn 10", "Mở Mập: còn 230 cá").
 
 ### 7.4 Màn tóm tắt vắng mặt

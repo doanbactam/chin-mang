@@ -15,3 +15,4 @@
 ## Thay đổi
 
 - 2026-11-13 · core · Không đổi chữ ký nào trong `api.rs` / `game.rs`. Ghi chú ngữ nghĩa: `Hud.max_global_stage` và `PrestigePreview` dùng max **trong mạng hiện tại** (reset về màn xuất phát khi Chín Mạng); thành tựu khu/vòng dùng max mọi thời đại. `enemies()` gồm cả quái đang chết (`anim = Death`, `hp = 0`) cho tới khi hết animation. `carton().x` bám theo `party_x + 60`. `Game` là `Send + Sync`.
+- 2026-11-13 · core · **Thêm** (yêu cầu người điều phối): `AchId::Fish1M` (key `fish_1m`) và `AchId::Fish1B` (key `fish_1b`), group `wealth`, điều kiện `Stats.fish_earned ≥ 1e6 / 1e9`; thêm vào **cuối** enum, `AchId::ALL` thành `[AchId; 26]`, `achievements()` trả 26 phần tử. Bản lưu cũ (24 thành tựu) vẫn tải được. View cần chuỗi i18n `fish_1m` / `fish_1b` và icon `ach_wealth`.

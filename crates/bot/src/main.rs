@@ -33,6 +33,19 @@ struct Report {
     /// trung vị khoảng cách giữa hai lần mua trong 2 giờ đầu (giây)
     median_buy_gap: f64,
     cpu_secs: f64,
+    /// bậc nâng cấp trung bình của đồ đang mặc: lúc prestige đầu / 2 h / 3 h / ngay trước prestige thứ 3
+    up_first_prestige: Option<f64>,
+    up_2h: Option<f64>,
+    up_3h: Option<f64>,
+    up_before_p3: Option<f64>,
+    /// max_global_stage của từng mạng (mạng cuối = giá trị lúc kết thúc chạy)
+    life_max: Vec<u32>,
+    /// thời điểm bắt đầu từng mạng (giây)
+    life_start: Vec<f64>,
+    /// thời gian (giây) để mỗi mạng sau vượt kỷ lục mạng trước (None = chưa vượt)
+    regain: Vec<Option<f64>>,
+    best_24: u32,
+    lives_24: u32,
 }
 
 struct Bot {
@@ -130,15 +143,26 @@ impl Bot {
         }
         // Chín Mạng: khi hồn nhận được ≥ max(3, tổng hồn đã có — gồm phần đã tiêu ở cửa hàng)
         let pp = self.g.prestige_preview();
-        if !self.no_prestige
-            && pp.available
-            && pp.souls_gain >= (3.0f64).max(self.souls_total)
-            && self.g.command(Command::Prestige).is_ok()
-        {
+        if !self.no_prestige && pp.available && pp.souls_gain >= (3.0f64).max(self.souls_total) {
+            let up = self.avg_upgrade();
+            let life_max = hud.max_global_stage;
+            if self.g.command(Command::Prestige).is_err() {
+                return;
+            }
             self.souls_total += pp.souls_gain;
             if self.rep.first_prestige.is_none() {
                 self.rep.first_prestige = Some(self.t);
+                self.rep.up_first_prestige = Some(up);
             }
+            if pp.lives_used == 2 {
+                self.rep.up_before_p3 = Some(up);
+            }
+            if let Some(last) = self.rep.life_max.last_mut() {
+                *last = life_max;
+            }
+            self.rep.life_max.push(0);
+            self.rep.life_start.push(self.t);
+            self.rep.regain.push(None);
             self.cur_max_gs = self.g.hud().max_global_stage;
             self.last_gs_change = self.t;
         }
@@ -219,6 +243,19 @@ impl Bot {
         }
     }
 
+    /// Bậc nâng cấp trung bình của mọi món đang mặc (0 nếu chưa mặc gì).
+    fn avg_upgrade(&self) -> f64 {
+        let mut n = 0.0;
+        let mut sum = 0.0;
+        for c in CatId::ALL {
+            for it in self.g.cat_info(c).equipped.iter().flatten() {
+                n += 1.0;
+                sum += it.upgrade as f64;
+            }
+        }
+        if n > 0.0 { sum / n } else { 0.0 }
+    }
+
     fn act_idle(&mut self) {
         if let Some(t) = self.g.pending_tutorial() {
             let _ = self.g.command(Command::DismissTutorial { id: t });
@@ -254,6 +291,27 @@ impl Bot {
         }
         let hud = self.g.hud();
         self.rep.best_gs = self.rep.best_gs.max(hud.max_global_stage);
+        if self.rep.life_max.is_empty() {
+            self.rep.life_max.push(0);
+            self.rep.life_start.push(0.0);
+            self.rep.regain.push(Some(0.0));
+        }
+        let k = self.rep.life_max.len() - 1;
+        self.rep.life_max[k] = self.rep.life_max[k].max(hud.max_global_stage);
+        if k > 0 && self.rep.regain[k].is_none() && self.rep.life_max[k] >= self.rep.life_max[k - 1]
+        {
+            self.rep.regain[k] = Some(self.t - self.rep.life_start[k]);
+        }
+        if self.t == 7200.0 {
+            self.rep.up_2h = Some(self.avg_upgrade());
+        }
+        if self.t == 10800.0 {
+            self.rep.up_3h = Some(self.avg_upgrade());
+        }
+        if self.t == 86400.0 {
+            self.rep.best_24 = self.rep.best_gs;
+            self.rep.lives_24 = self.g.prestige_preview().lives_used;
+        }
         if hud.max_global_stage != self.cur_max_gs {
             if self.trace {
                 let lv: Vec<String> = CatId::ALL
@@ -405,7 +463,48 @@ fn cmd_sim(args: &[String]) -> ExitCode {
         r.median_buy_gap,
         r.cpu_secs
     );
+    println!(
+        "Bậc đồ TB: 2 h {} · 3 h {} · prestige đầu {} · trước prestige 3 {} · max gs từng mạng {:?} · vượt kỷ lục sau {:?}",
+        fmt_up(r.up_2h),
+        fmt_up(r.up_3h),
+        fmt_up(r.up_first_prestige),
+        fmt_up(r.up_before_p3),
+        r.life_max,
+        r.regain
+            .iter()
+            .skip(1)
+            .map(|x| fmt_t(*x))
+            .collect::<Vec<_>>()
+    );
     ExitCode::SUCCESS
+}
+
+fn fmt_up(v: Option<f64>) -> String {
+    match v {
+        Some(x) => format!("+{x:.1}"),
+        None => "—".into(),
+    }
+}
+
+/// Tỉ lệ (thời gian vượt kỷ lục mạng trước) / (thời lượng mạng trước), cho mọi mạng k ≥ 2 đã vượt.
+fn regain_ratios(r: &Report) -> Vec<f64> {
+    (2..r.life_max.len())
+        .filter_map(|k| {
+            let prev = r.life_start[k] - r.life_start[k - 1];
+            r.regain[k].map(|t| t / prev.max(1.0))
+        })
+        .collect()
+}
+
+/// Số mạng (≥ 2) không vượt được kỷ lục mạng trước; bỏ qua mạng cuối nếu nó mới bắt đầu < `grace` giây.
+fn lives_not_regained(r: &Report, grace: f64) -> usize {
+    let end = r.hours * 3600.0;
+    (1..r.life_max.len())
+        .filter(|&k| {
+            let last = k + 1 == r.life_max.len();
+            r.regain[k].is_none() && !(last && end - r.life_start[k] < grace)
+        })
+        .count()
 }
 
 struct Gate {
@@ -463,7 +562,7 @@ fn cmd_gates(args: &[String]) -> ExitCode {
     let seeds: Vec<u64> = (1..=5).collect();
     let mut jobs = Vec::new();
     for &s in &seeds {
-        jobs.push((BotKind::Greedy, s, 24.0));
+        jobs.push((BotKind::Greedy, s, 48.0));
     }
     for &s in &seeds {
         jobs.push((BotKind::Idle, s, 8.0));
@@ -514,6 +613,36 @@ fn cmd_gates(args: &[String]) -> ExitCode {
             r.cpu_secs / r.hours
         );
     }
+    println!();
+    println!(
+        "{:>4} {:>6} {:>6} {:>9} {:>8} {:>7} {:>7}  max gs từng mạng / thời gian vượt kỷ lục (tỉ lệ so với mạng trước)",
+        "seed", "đồ 2h", "đồ 3h", "đồ prest1", "trước p3", "gs 24h", "gs 48h",
+    );
+    for r in &greedy {
+        let regain: Vec<String> = r
+            .regain
+            .iter()
+            .skip(1)
+            .map(|x| fmt_t(*x))
+            .chain(
+                regain_ratios(r)
+                    .iter()
+                    .map(|x| format!("{:.0}%", x * 100.0)),
+            )
+            .collect();
+        println!(
+            "{:>4} {:>6} {:>6} {:>9} {:>8} {:>7} {:>7}  {:?} / {}",
+            r.seed,
+            fmt_up(r.up_2h),
+            fmt_up(r.up_3h),
+            fmt_up(r.up_first_prestige),
+            fmt_up(r.up_before_p3),
+            r.best_24,
+            r.best_gs,
+            r.life_max,
+            regain.join(" ")
+        );
+    }
     for r in &idle {
         println!(
             "idle seed {}: max gs {} (vòng {} khu {}) sau {} h",
@@ -541,8 +670,23 @@ fn cmd_gates(args: &[String]) -> ExitCode {
     let rk = col(&|r| r.first_rat_king);
     let z3 = col(&|r| r.reach_zone3);
     let pr = col(&|r| r.first_prestige);
-    let lives = col(&|r| Some(r.lives_used as f64));
-    let gs = col(&|r| Some(r.best_gs as f64));
+    let lives = col(&|r| Some(r.lives_24 as f64));
+    let gs = col(&|r| Some(r.best_24 as f64));
+    let up1 = col(&|r| r.up_first_prestige);
+    let up3 = col(&|r| r.up_before_p3);
+    let worst_ratio = greedy
+        .iter()
+        .flat_map(|r| regain_ratios(r))
+        .fold(0.0f64, f64::max);
+    let not_regained: usize = greedy
+        .iter()
+        .map(|r| lives_not_regained(r, 4.0 * 3600.0))
+        .sum();
+    let slowest_regain = greedy
+        .iter()
+        .flat_map(|r| r.regain.iter().skip(1).flatten().copied())
+        .fold(0.0f64, f64::max);
+    let grow_48 = greedy.iter().filter(|r| r.best_gs > r.best_24).count();
     let stall = greedy.iter().map(|r| r.max_stall).fold(0.0f64, f64::max);
     let buy = col(&|r| Some(r.median_buy_gap));
     let idle_min_gs = idle.iter().map(|r| r.best_gs).min().unwrap_or(0);
@@ -593,6 +737,34 @@ fn cmd_gates(args: &[String]) -> ExitCode {
             pass: in_range(gs, 60.0, 160.0),
         },
         Gate {
+            name: "Bậc nâng cấp TB đồ đang mặc lúc prestige đầu ≥ 3",
+            value: show(up1, 1.0, ""),
+            pass: up1.is_some_and(|x| x >= 3.0),
+        },
+        Gate {
+            name: "Mỗi mạng sau đạt max_gs ≥ mạng trước (mọi seed)",
+            value: format!(
+                "{not_regained} lỗi, chậm nhất {:.1} h",
+                slowest_regain / 3600.0
+            ),
+            pass: not_regained == 0,
+        },
+        Gate {
+            name: "Bậc TB đồ đang mặc ngay trước prestige thứ 3: 8–10",
+            value: show(up3, 1.0, ""),
+            pass: in_range(up3, 8.0, 10.0),
+        },
+        Gate {
+            name: "Vượt kỷ lục cũ trong ≤ thời lượng mạng trước",
+            value: format!("tối đa {:.0}%", worst_ratio * 100.0),
+            pass: worst_ratio <= 1.0,
+        },
+        Gate {
+            name: "48 h: max_gs tăng trong 24 h thứ hai (mọi seed)",
+            value: format!("{grow_48}/{} seed", greedy.len()),
+            pass: grow_48 == greedy.len(),
+        },
+        Gate {
             name: "Không tường > 25 phút (trước prestige đầu, mọi seed)",
             value: format!("{:.1} phút", stall / 60.0),
             pass: stall <= 25.0 * min,
@@ -616,7 +788,7 @@ fn cmd_gates(args: &[String]) -> ExitCode {
     println!();
     println!(
         "{:<55} {:>14}  kết quả",
-        "Cổng (GreedyBot seed 1..5, trung bình)", "giá trị"
+        "Cổng (GreedyBot seed 1..5 × 48 h, trung bình)", "giá trị"
     );
     let mut all = true;
     for g in &gates {

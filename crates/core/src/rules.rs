@@ -104,8 +104,17 @@ pub fn talent_points_free(c: &CatState) -> u32 {
     talent_points_total(c.level).saturating_sub(spent)
 }
 
+/// Hệ số của một nâng cấp hồn. Vuốt/lông/ví nhân dồn `(1 + x)^bậc` (theo kịp độ khó hàm mũ);
+/// các dòng khác cộng tuyến tính.
 pub fn soul_mult(s: &State, u: SoulUpgrade) -> f64 {
-    1.0 + soul_def(u).per_rank * s.soul_rank(u) as f64
+    let d = soul_def(u);
+    let r = s.soul_rank(u) as i32;
+    match u {
+        SoulUpgrade::ClawSharpen | SoulUpgrade::ThickFur | SoulUpgrade::FatWallet => {
+            (1.0 + d.per_rank).powi(r)
+        }
+        _ => 1.0 + d.per_rank * r as f64,
+    }
 }
 
 pub fn derive(s: &State, cat: CatId) -> Derived {
@@ -187,8 +196,11 @@ pub fn gear_chance_mult(s: &State) -> f64 {
     soul_mult(s, SoulUpgrade::LuckyPaw)
 }
 
+/// Hệ số HP/DMG quái: `ENEMY_SCALE^gs` tới màn `ENEMY_SCALE_KNEE`, sau đó `ENEMY_SCALE_LATE`/màn.
 pub fn enemy_scale(gs: u32) -> f64 {
-    ENEMY_SCALE.powi(gs as i32)
+    let early = gs.min(ENEMY_SCALE_KNEE) as i32;
+    let late = gs.saturating_sub(ENEMY_SCALE_KNEE) as i32;
+    ENEMY_SCALE.powi(early) * ENEMY_SCALE_LATE.powi(late)
 }
 
 pub fn reward_scale(gs: u32) -> f64 {
@@ -196,7 +208,7 @@ pub fn reward_scale(gs: u32) -> f64 {
 }
 
 pub fn yarn_drop_amount(gs: u32) -> f64 {
-    1.0 + (gs / 10) as f64
+    ((1 + gs / 10) as f64 * YARN_GROWTH.powi(gs as i32)).round()
 }
 
 pub fn prestige_gain(max_gs: u32) -> f64 {

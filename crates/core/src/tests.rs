@@ -1749,6 +1749,22 @@ fn every_achievement_reachable() {
         g.command(Command::Catnip).unwrap();
     }
     assert!(unlocked(&g, AchId::Catnip50));
+    // giàu: tổng cá kiếm được (Give là cheat, không tính) → kiếm thật qua hộp/offline
+    g.s.stats.fish_earned = 0.0;
+    g.credit_fish(1e6);
+    g.cheat(Cheat::Give {
+        currency: Currency::Fish,
+        amount: 0.0,
+    });
+    assert!(unlocked(&g, AchId::Fish1M) && !unlocked(&g, AchId::Fish1B));
+    g.credit_fish(1e9);
+    g.cheat(Cheat::Give {
+        currency: Currency::Fish,
+        amount: 0.0,
+    });
+    assert!(unlocked(&g, AchId::Fish1B));
+    assert_eq!(AchId::Fish1M.key(), "fish_1m");
+    assert_eq!(AchId::Fish1B.group(), "wealth");
     // mạng
     for _ in 0..9 {
         g.cheat(Cheat::Goto {
@@ -1762,7 +1778,7 @@ fn every_achievement_reachable() {
         assert!(unlocked(&g, id));
     }
     let all = g.achievements();
-    assert_eq!(all.len(), 24);
+    assert_eq!(all.len(), 26);
     assert!(all.iter().all(|a| a.unlocked && a.at.is_some()), "{all:?}");
     // đã đạt rồi thì không phát lại
     g.drain_events();
@@ -1985,4 +2001,29 @@ fn enemy_hurt_and_boss_special_are_short() {
             .find(|e| e.kind == EnemyKind::Mastiff)
             .unwrap();
     assert_ne!(boss.anim, Anim::Special);
+}
+
+#[test]
+fn old_save_with_24_achievements_loads() {
+    let g = Game::new(1);
+    let json = g.save(10);
+    let mut v: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let arr = v["state"]["achievements"].as_array_mut().unwrap();
+    arr.truncate(24);
+    let h = Game::load(&v.to_string()).unwrap();
+    assert_eq!(h.achievements().len(), 26);
+}
+
+#[test]
+fn wealth_achievement_from_real_income() {
+    let mut g = Game::new(2);
+    g.s.stats.fish_earned = 999_990.0;
+    g.cheat(Cheat::SetLevel {
+        cat: CatId::Muop,
+        level: 40,
+    });
+    let ev = run_until(&mut g, 30 * 120, |e| {
+        *e == Event::Achievement { id: AchId::Fish1M }
+    });
+    assert!(ev.is_some());
 }

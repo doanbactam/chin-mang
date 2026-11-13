@@ -143,6 +143,9 @@ pub const BONE_RAIN_VY: f64 = -120.0;
 
 // ── quái ──
 pub const ENEMY_SCALE: f64 = 1.15;
+/// Sau màn này độ khó tăng chậm hơn (`ENEMY_SCALE_LATE`/màn) để cấp + đồ + hồn theo kịp.
+pub const ENEMY_SCALE_KNEE: u32 = 40;
+pub const ENEMY_SCALE_LATE: f64 = 1.125;
 pub const REWARD_SCALE: f64 = 1.10;
 pub const FLY_HEIGHT: f64 = 10.0;
 pub const POISON_SECS: f64 = 2.0;
@@ -320,7 +323,9 @@ pub const TITAN_PULL: f64 = 20.0;
 pub const TITAN_STUN: f64 = 0.8;
 
 // ── tài nguyên / đồ rơi ──
-pub const YARN_DROP_CHANCE: f64 = 0.15;
+pub const YARN_DROP_CHANCE: f64 = 0.20;
+/// Len mỗi lần rơi = `(1 + floor(gs/10)) * YARN_GROWTH^gs` (SPEC gốc: không có hệ số mũ).
+pub const YARN_GROWTH: f64 = 1.10;
 pub const BOSS_YARN_MULT: f64 = 5.0;
 pub const GEAR_DROP_CHANCE: f64 = 0.03;
 pub const RARITY_WEIGHTS: [f64; 4] = [70.0, 22.0, 7.0, 1.0];

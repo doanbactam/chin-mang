@@ -308,7 +308,7 @@ pub enum TutorialId {
     FirstBox,
 }
 
-/// 24 thành tựu (SPEC §2.10). `key()` dùng cho i18n; `group()` chọn icon `ach_{group}`.
+/// 26 thành tựu (SPEC §2.10). `key()` dùng cho i18n; `group()` chọn icon `ach_{group}`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum AchId {
     Zone2,
@@ -335,9 +335,13 @@ pub enum AchId {
     Boxes10,
     Boxes100,
     Catnip50,
+    /// tổng cá kiếm được ≥ 1e6
+    Fish1M,
+    /// tổng cá kiếm được ≥ 1e9
+    Fish1B,
 }
 impl AchId {
-    pub const ALL: [AchId; 24] = [
+    pub const ALL: [AchId; 26] = [
         AchId::Zone2,
         AchId::Zone3,
         AchId::Zone4,
@@ -362,6 +366,8 @@ impl AchId {
         AchId::Boxes10,
         AchId::Boxes100,
         AchId::Catnip50,
+        AchId::Fish1M,
+        AchId::Fish1B,
     ];
     pub fn key(self) -> &'static str {
         match self {
@@ -389,9 +395,11 @@ impl AchId {
             AchId::Boxes10 => "boxes_10",
             AchId::Boxes100 => "boxes_100",
             AchId::Catnip50 => "catnip_50",
+            AchId::Fish1M => "fish_1m",
+            AchId::Fish1B => "fish_1b",
         }
     }
-    /// zone | boss | cat | level | loot | lives | box | wealth  → icon `ach_{group}`.
+    /// zone | boss | cat | level | loot | lives | box | wealth → icon `ach_{group}`.
     pub fn group(self) -> &'static str {
         use AchId::*;
         match self {
@@ -402,6 +410,7 @@ impl AchId {
             FirstLegendary | MaxUpgrade => "loot",
             Lives2 | Lives5 | Lives9 => "lives",
             Boxes10 | Boxes100 | Catnip50 => "box",
+            Fish1M | Fish1B => "wealth",
         }
     }
 }

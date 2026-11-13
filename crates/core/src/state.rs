@@ -197,7 +197,8 @@ pub struct State {
     pub soul_ranks: [u32; 7],
     pub lives_used: u32,
 
-    pub achievements: [Option<f64>; 24],
+    /// thời điểm đạt mỗi thành tựu, theo thứ tự `AchId::ALL` (Vec để bản lưu cũ ít phần tử vẫn tải được)
+    pub achievements: Vec<Option<f64>>,
     pub bosses_beaten: [bool; 5],
     pub got_legendary: bool,
     pub got_max_upgrade: bool,
@@ -256,7 +257,7 @@ impl Default for State {
             auto_salvage: None,
             soul_ranks: [0; 7],
             lives_used: 0,
-            achievements: [None; 24],
+            achievements: vec![None; AchId::ALL.len()],
             bosses_beaten: [false; 5],
             got_legendary: false,
             got_max_upgrade: false,
