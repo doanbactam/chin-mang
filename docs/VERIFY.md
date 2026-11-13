@@ -76,3 +76,7 @@ Môi trường: Xvfb 1920×1080 (không có compositor nên nền trong suốt h
 | RAM | 214 MB, ổn định suốt 2.5 phút (không rò) | `ps`/`/proc/<pid>/status`. Có gồm bộ nhớ của lavapipe/LLVM JIT nên cao hơn trên GPU thật; mục tiêu < 150 MB cần đo lại trên máy thật |
 | CPU | ~47% một nhân | **Không đại diện**: lavapipe vẽ toàn bộ bằng CPU. Cần đo trên máy có GPU (MANUAL-CHECK) |
 | Âm thanh | không có thiết bị → game chạy tiếp không lỗi | log `No audio device found` |
+
+## CI GitHub Actions
+
+Lượt `43453854316` (commit "CI: install full Chromium…"): Linux (fmt, clippy, test, gates, art, audio, font, win-check) ✔ · Web (wasm + Chromium shots) ✔ · Windows release build (windows-latest, có artifact exe) ✔.
