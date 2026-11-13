@@ -84,3 +84,8 @@ Lượt `43453854316` (commit "CI: install full Chromium…"): Linux (fmt, clipp
 ### Phân tích RAM (bản release, Xvfb + lavapipe, sau 60 s)
 `/proc/<pid>/smaps`: VmRSS 215 MB = libLLVM 59 MB + libvulkan_lvp 8 MB + `memfd:allocation` (bộ nhớ "GPU" của lavapipe) 17 MB + mã game 44 MB + heap/anon 78 MB (một phần là cấp phát của lavapipe/JIT).
 Bỏ phần của renderer phần mềm (~84 MB) thì game còn **~130 MB** — dưới mục tiêu 150 MB, nhưng driver GPU thật cũng chiếm bộ nhớ riêng, nên mục tiêu §5 vẫn phải đo trên máy thật (MANUAL-CHECK).
+
+### Thử exe Windows (artifact CI) bằng Wine 11.21 portable trên Xvfb
+- Exe khởi động, tạo `%APPDATA%\ChinMang\` và file khóa `chin-mang.lock` (đường dẫn dữ liệu Windows đúng).
+- Sau đó panic trong `winit 0.30.13` `monitor.rs:238` (`EnumDisplaySettings` của Wine/Xvfb thiếu trường `dmFields`), cả khi chạy trong desktop ảo của Wine. Đây là giới hạn của Wine, không phải lỗi game: Bevy luôn liệt kê màn hình như vậy và chạy bình thường trên Windows thật. Wine cũng không hỗ trợ cửa sổ trong suốt DWM (`Setting transparent window is failed 0x80004001`).
+- Kết luận: tự khởi động, Ghost mode, lưu khi tắt máy và độ trong suốt **chỉ kiểm được trên Windows thật** (MANUAL-CHECK).
