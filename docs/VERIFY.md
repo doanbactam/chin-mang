@@ -80,3 +80,7 @@ Môi trường: Xvfb 1920×1080 (không có compositor nên nền trong suốt h
 ## CI GitHub Actions
 
 Lượt `43453854316` (commit "CI: install full Chromium…"): Linux (fmt, clippy, test, gates, art, audio, font, win-check) ✔ · Web (wasm + Chromium shots) ✔ · Windows release build (windows-latest, có artifact exe) ✔.
+
+### Phân tích RAM (bản release, Xvfb + lavapipe, sau 60 s)
+`/proc/<pid>/smaps`: VmRSS 215 MB = libLLVM 59 MB + libvulkan_lvp 8 MB + `memfd:allocation` (bộ nhớ "GPU" của lavapipe) 17 MB + mã game 44 MB + heap/anon 78 MB (một phần là cấp phát của lavapipe/JIT).
+Bỏ phần của renderer phần mềm (~84 MB) thì game còn **~130 MB** — dưới mục tiêu 150 MB, nhưng driver GPU thật cũng chiếm bộ nhớ riêng, nên mục tiêu §5 vẫn phải đo trên máy thật (MANUAL-CHECK).
