@@ -61,3 +61,18 @@ Các câu: (a) đọc được trên nền trắng, đen và busy; (b) phân bi�
 | scale1 / scale3 | ✔ | ~ | ✔ | ✔ | ✔ | ✔ | Ở hệ số 1 mèo rất nhỏ; dải cao 48 px và 144 px đúng hệ số |
 
 Ảnh probe: [`tools/verify/wasm-probe/probe-busy.png`](../tools/verify/wasm-probe/probe-busy.png).
+
+## Chạy native trên Linux (Xvfb + lavapipe), 2026-11-13
+
+Môi trường: Xvfb 1920×1080 (không có compositor nên nền trong suốt hiện thành đen), Vulkan phần mềm lavapipe (Mesa 25.2.8, `.deb` giải nén vào `~/.local/sysroot`, `VK_ICD_FILENAMES` trong `env.sh`), bản `--release`.
+
+| Mục | Kết quả | Bằng chứng |
+|---|---|---|
+| Khởi động native | ✘ → ✔ | Lần đầu panic `ui::rebuild: Res<Atlas> does not exist` (race: cờ `AssetsReady` bật trước khi Commands chèn `Atlas`; bản web không lộ). Đã sửa ở `crates/game/src/assets.rs`, chạy lại ổn định > 5 phút. |
+| Cửa sổ bám đáy, rộng màn hình, hệ số tự động ×2 ở 1080p | ✔ | [native/xvfb-root.png](native/xvfb-root.png) |
+| Ngôn ngữ mặc định theo locale (máy là `C` → English) | ✔ | như trên |
+| Tự lưu + `save.bak` xoay vòng, lưu khi SIGTERM | ✔ | `save.json`/`save.bak` trong `$XDG_DATA_HOME/chin-mang/` |
+| Chặn mở bản thứ hai | ✔ | bản 2 thoát ngay: "đã có bản Chín Mạng khác đang chạy (khóa …/chin-mang.lock)" |
+| RAM | 214 MB, ổn định suốt 2.5 phút (không rò) | `ps`/`/proc/<pid>/status`. Có gồm bộ nhớ của lavapipe/LLVM JIT nên cao hơn trên GPU thật; mục tiêu < 150 MB cần đo lại trên máy thật |
+| CPU | ~47% một nhân | **Không đại diện**: lavapipe vẽ toàn bộ bằng CPU. Cần đo trên máy có GPU (MANUAL-CHECK) |
+| Âm thanh | không có thiết bị → game chạy tiếp không lỗi | log `No audio device found` |

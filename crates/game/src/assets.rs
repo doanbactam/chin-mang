@@ -198,7 +198,6 @@ fn finish_loading(
     server: Res<AssetServer>,
     docs: Res<Assets<JsonDoc>>,
     fonts: Res<Fonts>,
-    mut ready: ResMut<AssetsReady>,
     sounds: Option<Res<Sounds>>,
 ) {
     // âm thanh: không chặn khởi động
@@ -221,7 +220,10 @@ fn finish_loading(
                     image: pending.atlas_png.clone(),
                     def,
                 });
-                ready.0 = true;
+                // Bật cờ qua Commands (không ghi thẳng `ready.0`): Atlas chỉ tồn tại sau khi Commands được áp,
+                // nếu bật cờ ngay thì system dùng `Res<Atlas>` (vd. ui::rebuild) có thể chạy giữa hai thời điểm
+                // và panic "Resource does not exist" — đã tái hiện trên bản native.
+                commands.insert_resource(AssetsReady(true));
             }
             Err(e) => {
                 if !pending.reported {
