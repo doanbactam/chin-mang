@@ -1,0 +1,13 @@
+{
+  "name": "chin-mang-tools",
+  "private": true,
+  "description": "Node tooling for Chín Mạng (art/audio/verify). Playwright is used only by tools/verify.",
+  "scripts": {
+    "verify": "node tools/verify/verify.mjs",
+    "build-web": "node tools/verify/build-web.mjs",
+    "shots": "node tools/verify/shots.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.0"
+  }
+}

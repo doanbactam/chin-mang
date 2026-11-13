@@ -1,0 +1,99 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Không đặt RUSTFLAGS toàn cục: sẽ đè cfg getrandom_backend của wasm trong .cargo/config.toml.
+
+jobs:
+  linux:
+    name: Linux · fmt, clippy, test, gates, art, audio, font, win-check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: System deps (Bevy, docs/linux_dependencies.md)
+        run: sudo apt-get update && sudo apt-get install -y g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0 libwayland-dev libxkbcommon-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: x86_64-pc-windows-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: verify (SPEC §10.1, không web)
+        run: node tools/verify/verify.mjs --skip-web --keep-going
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-logs-linux
+          path: target/verify-logs/
+
+  web:
+    name: Web · wasm build + Chromium shots
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+      - name: wasm-bindgen CLI (= phiên bản trong Cargo.lock)
+        run: |
+          V=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')
+          cargo install --locked wasm-bindgen-cli --version "$V"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium-headless-shell
+      - run: node tools/verify/verify.mjs --only wasm,shots
+        env:
+          CM_JOBS: '4'
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shots
+          path: |
+            docs/shots/*.png
+            target/verify-logs/
+
+  windows:
+    name: Windows · release build
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build -p chin-mang --release
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/chin-mang | Out-Null
+          Copy-Item target/release/chin-mang.exe dist/chin-mang/
+          Copy-Item -Recurse assets dist/chin-mang/assets
+          Copy-Item README.md dist/chin-mang/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chin-mang-windows
+          path: dist/chin-mang/

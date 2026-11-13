@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Chín Mạng — web</title>
+<meta name="viewport" content="width=1280">
+<link rel="icon" href="data:,">
+<!--
+  Harness bản web (SPEC §6, §10.2). build-web.mjs thay chỗ giữ tên module (dòng import bên dưới) bằng tên module wasm-bindgen.
+  - Canvas cố định 1280×600, không cuộn, canvas trong suốt; "desktop giả" vẽ bằng CSS dưới canvas theo ?bg=white|black|busy.
+  - Query string giữ nguyên trên URL: game tự đọc window.location.search (?shot=…&lang=…&scale=…).
+  - Mọi console.error / lỗi trang được gom vào window.__CM_ERRORS (shots.mjs cũng nghe trực tiếp).
+  - Game báo sẵn sàng bằng window.__CM_READY = true.
+-->
+<style>
+  html, body { margin: 0; padding: 0; width: 1280px; height: 600px; overflow: hidden; background: transparent; }
+  #desk { position: absolute; left: 0; top: 0; width: 1280px; height: 600px; overflow: hidden; }
+  #bevy { position: absolute; left: 0; top: 0; width: 1280px; height: 600px; display: block; outline: none; background: transparent; }
+  body.bg-white #desk { background: #ffffff; }
+  body.bg-black #desk { background: #000000; }
+  body.bg-busy #desk {
+    background:
+      radial-gradient(circle at 18% 30%, #f6c76a 0 60px, transparent 61px),
+      repeating-linear-gradient(45deg, rgba(255,255,255,.08) 0 6px, transparent 6px 14px),
+      linear-gradient(160deg, #2f6f8f 0%, #6fa86b 45%, #e9d48a 70%, #c0533b 100%);
+  }
+  .win { position: absolute; border-radius: 6px; box-shadow: 0 4px 18px rgba(0,0,0,.35); overflow: hidden; font: 13px/18px sans-serif; color: #222; }
+  .win .bar { height: 22px; background: #3b4252; color: #eceff4; padding: 2px 8px; box-sizing: border-box; font-weight: bold; }
+  .win .body { background: #fafafa; padding: 6px 8px; height: 100%; }
+  .win .body p { margin: 0 0 2px; white-space: nowrap; }
+  .icon { position: absolute; width: 44px; height: 44px; border-radius: 8px; }
+  #errs { display: none; }
+</style>
+</head>
+<body>
+<div id="desk"></div>
+<canvas id="bevy" width="1280" height="600" tabindex="0"></canvas>
+<script>
+  window.__CM_READY = false;
+  window.__CM_ERRORS = [];
+  const params = new URLSearchParams(location.search);
+  const bg = params.get('bg') || 'busy';
+  document.body.classList.add('bg-' + bg);
+  window.__CM_QUERY = Object.fromEntries(params.entries());
+
+  // "Desktop bận rộn" tất định: cửa sổ giả + chữ + icon, không dùng ảnh ngoài.
+  if (bg === 'busy') {
+    const desk = document.getElementById('desk');
+    const wins = [
+      [40, 40, 420, 300, 'notes.txt — Editor'], [380, 120, 520, 360, 'Terminal'],
+      [820, 30, 400, 420, 'Trình duyệt — Tin tức'], [140, 330, 360, 240, 'Bảng tính Q3'],
+    ];
+    const lorem = 'Lorem ipsum dolor sit amet, tiếng Việt có dấu ở đây, 12345 — fn main() { println!("hi"); }';
+    wins.forEach(([x, y, w, h, t], i) => {
+      const el = document.createElement('div');
+      el.className = 'win';
+      Object.assign(el.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+      const body = Array.from({ length: Math.floor(h / 20) }, (_, k) => `<p style="color:${k % 3 ? '#222' : '#a33'}">${lorem.slice((k * 7 + i * 5) % 40)}</p>`).join('');
+      el.innerHTML = `<div class="bar">${t}</div><div class="body" style="background:${['#fafafa','#1e1e2e','#fff8e7','#eef6ff'][i]};color:${i === 1 ? '#9ece6a' : '#222'}">${body}</div>`;
+      desk.appendChild(el);
+    });
+    for (let i = 0; i < 9; i++) {
+      const ic = document.createElement('div');
+      ic.className = 'icon';
+      Object.assign(ic.style, { left: '8px', top: (20 + i * 52) + 'px', background: `hsl(${i * 40},70%,55%)` });
+      desk.appendChild(ic);
+    }
+  }
+
+  const origError = console.error.bind(console);
+  console.error = (...a) => { window.__CM_ERRORS.push(a.map(String).join(' ')); origError(...a); };
+  // winit trên web dùng exception làm control-flow; đó không phải lỗi thật.
+  const benign = (m) => /Using exceptions for control flow/.test(String(m));
+  window.addEventListener('error', (e) => { if (!benign(e.message)) window.__CM_ERRORS.push('error: ' + e.message); });
+  window.addEventListener('unhandledrejection', (e) => { if (!benign(e.reason)) window.__CM_ERRORS.push('rejection: ' + (e.reason && e.reason.stack || e.reason)); });
+</script>
+<script type="module">
+  import init from './__JS__';
+  init().catch((e) => {
+    if (!/Using exceptions for control flow/.test(String(e))) {
+      console.error('wasm init failed: ' + (e && e.stack || e));
+    }
+  });
+</script>
+</body>
+</html>
